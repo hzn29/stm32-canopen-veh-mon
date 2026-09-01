@@ -1,0 +1,27 @@
+# Keil/CubeIDE 编译输出
+MDK-ARM/can00/
+MDK-ARM/*.uvoptx
+MDK-ARM/*.uvguix*
+MDK-ARM/DebugConfig/
+**/*.o
+**/*.d
+**/*.crf
+**/*.axf
+**/*.hex
+**/*.map
+**/*.htm
+**/*.lnp
+**/*.lst
+
+# IDE 临时文件
+.settings/
+.metadata/
+.project
+.cproject
+
+# 本地凭据和证书
+**/*secret*
+**/*password*
+**/*.key
+**/*.pem
+**/*.crt
