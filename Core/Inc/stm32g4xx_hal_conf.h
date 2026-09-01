@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+﻿/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    stm32g4xx_hal_conf.h
@@ -18,7 +18,6 @@
   */
 /* USER CODE END Header */
 
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef STM32G4xx_HAL_CONF_H
 #define STM32G4xx_HAL_CONF_H
 
@@ -26,47 +25,18 @@
  extern "C" {
 #endif
 
-/* Exported types ------------------------------------------------------------*/
-/* Exported constants --------------------------------------------------------*/
 
-/* ########################## Module Selection ############################## */
 /**
   * @brief This is the list of modules to be used in the HAL driver
   */
 
 #define HAL_MODULE_ENABLED
 
-  /*#define HAL_ADC_MODULE_ENABLED   */
-/*#define HAL_COMP_MODULE_ENABLED   */
-/*#define HAL_CORDIC_MODULE_ENABLED   */
-/*#define HAL_CRC_MODULE_ENABLED   */
-/*#define HAL_CRYP_MODULE_ENABLED   */
-/*#define HAL_DAC_MODULE_ENABLED   */
 #define HAL_FDCAN_MODULE_ENABLED
-/*#define HAL_FMAC_MODULE_ENABLED   */
-/*#define HAL_HRTIM_MODULE_ENABLED   */
-/*#define HAL_IRDA_MODULE_ENABLED   */
 #define HAL_IWDG_MODULE_ENABLED
-/*#define HAL_I2C_MODULE_ENABLED   */
 #define HAL_I2C_MODULE_ENABLED
-/*#define HAL_I2S_MODULE_ENABLED   */
-/*#define HAL_LPTIM_MODULE_ENABLED   */
-/*#define HAL_NAND_MODULE_ENABLED   */
-/*#define HAL_NOR_MODULE_ENABLED   */
-/*#define HAL_OPAMP_MODULE_ENABLED   */
-/*#define HAL_PCD_MODULE_ENABLED   */
-/*#define HAL_QSPI_MODULE_ENABLED   */
-/*#define HAL_RNG_MODULE_ENABLED   */
-/*#define HAL_RTC_MODULE_ENABLED   */
-/*#define HAL_SAI_MODULE_ENABLED   */
-/*#define HAL_SMARTCARD_MODULE_ENABLED   */
-/*#define HAL_SMBUS_MODULE_ENABLED   */
 #define HAL_SPI_MODULE_ENABLED
-/*#define HAL_SRAM_MODULE_ENABLED   */
-/*#define HAL_TIM_MODULE_ENABLED   */
 #define HAL_UART_MODULE_ENABLED
-/*#define HAL_USART_MODULE_ENABLED   */
-/*#define HAL_WWDG_MODULE_ENABLED   */
 #define HAL_GPIO_MODULE_ENABLED
 #define HAL_EXTI_MODULE_ENABLED
 #define HAL_DMA_MODULE_ENABLED
@@ -75,7 +45,6 @@
 #define HAL_PWR_MODULE_ENABLED
 #define HAL_CORTEX_MODULE_ENABLED
 
-/* ########################## Register Callbacks selection ############################## */
 /**
   * @brief This is the list of modules where register callback can be used
   */
@@ -109,7 +78,6 @@
 #define USE_HAL_USART_REGISTER_CALLBACKS      0U
 #define USE_HAL_WWDG_REGISTER_CALLBACKS       0U
 
-/* ########################## Oscillator Values adaptation ####################*/
 /**
   * @brief Adjust the value of External High Speed oscillator (HSE) used in your application.
   *        This value is used by the RCC HAL module to compute the system frequency
@@ -176,7 +144,6 @@ The real value may vary depending on the variations in voltage and temperature.*
 /* Tip: To avoid modifying this file each time you need to use different HSE,
    ===  you can define the HSE value in your toolchain compiler preprocessor. */
 
-/* ########################### System Configuration ######################### */
 /**
   * @brief This is the HAL system configuration section
   */
@@ -188,14 +155,11 @@ The real value may vary depending on the variations in voltage and temperature.*
 #define  INSTRUCTION_CACHE_ENABLE     1U
 #define  DATA_CACHE_ENABLE            1U
 
-/* ########################## Assert Selection ############################## */
 /**
   * @brief Uncomment the line below to expanse the "assert_param" macro in the
   *        HAL drivers code
   */
-/* #define USE_FULL_ASSERT    1U */
 
-/* ################## SPI peripheral configuration ########################## */
 
 /* CRC FEATURE: Use to activate CRC feature inside HAL SPI Driver
  * Activated: CRC code is present inside driver
@@ -204,7 +168,6 @@ The real value may vary depending on the variations in voltage and temperature.*
 
 #define USE_SPI_CRC                   0U
 
-/* Includes ------------------------------------------------------------------*/
 /**
   * @brief Include module's header file
   */
@@ -357,7 +320,6 @@ The real value may vary depending on the variations in voltage and temperature.*
 #include "stm32g4xx_hal_wwdg.h"
 #endif /* HAL_WWDG_MODULE_ENABLED */
 
-/* Exported macro ------------------------------------------------------------*/
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  The assert_param macro is used for function's parameters check.
@@ -368,7 +330,6 @@ The real value may vary depending on the variations in voltage and temperature.*
   * @retval None
   */
 #define assert_param(expr) ((expr) ? (void)0U : assert_failed((uint8_t *)__FILE__, __LINE__))
-/* Exported functions ------------------------------------------------------- */
 void assert_failed(uint8_t *file, uint32_t line);
 #else
 #define assert_param(expr) ((void)0U)

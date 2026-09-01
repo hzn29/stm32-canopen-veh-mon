@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+﻿/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file    stm32g4xx_it.c
@@ -17,36 +17,29 @@
   */
 /* USER CODE END Header */
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32g4xx_it.h"
 #include "FreeRTOS.h"
 #include "task.h"
-/* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
 
-/* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
 /* USER CODE END TD */
 
-/* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
 /* USER CODE END PD */
 
-/* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
 /* USER CODE END PM */
 
-/* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
 
-/* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -56,19 +49,14 @@
 
 /* USER CODE END 0 */
 
-/* External variables --------------------------------------------------------*/
 extern FDCAN_HandleTypeDef hfdcan1;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern UART_HandleTypeDef huart1;
-/* 声明 USART2 句柄，供 ESP32-12F 中断服务程序使用。 */
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
 
-/******************************************************************************/
-/*           Cortex-M4 Processor Interruption and Exception Handlers          */
-/******************************************************************************/
 /**
   * @brief This function handles Non maskable interrupt.
   */
@@ -179,12 +167,6 @@ void SysTick_Handler(void)
   /* USER CODE END SysTick_IRQn 1 */
 }
 
-/******************************************************************************/
-/* STM32G4xx Peripheral Interrupt Handlers                                    */
-/* Add here the Interrupt Handlers for the used peripherals.                  */
-/* For the available peripheral interrupt handler names,                      */
-/* please refer to the startup file (startup_stm32g4xx.s).                    */
-/******************************************************************************/
 
 /**
   * @brief This function handles DMA1 channel1 global interrupt.
@@ -233,7 +215,6 @@ void USART1_IRQHandler(void)
   */
 void USART2_IRQHandler(void)
 {
-  /* 将 USART2 中断交给 HAL，由 HAL 调用 ESP32 接收回调。 */
   HAL_UART_IRQHandler(&huart2);
 }
 

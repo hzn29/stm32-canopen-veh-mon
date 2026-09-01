@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+﻿/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file         stm32g4xx_hal_msp.c
@@ -18,41 +18,33 @@
   */
 /* USER CODE END Header */
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_usart1_rx;
-/* 引用 main.c 中的 I2C1 句柄。 */
 extern I2C_HandleTypeDef hi2c1;
 
-/* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 
 /* USER CODE END TD */
 
-/* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN Define */
 
 /* USER CODE END Define */
 
-/* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN Macro */
 
 /* USER CODE END Macro */
 
-/* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
 
-/* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
-/* External functions --------------------------------------------------------*/
 /* USER CODE BEGIN ExternalFunctions */
 
 /* USER CODE END ExternalFunctions */
@@ -73,8 +65,6 @@ void HAL_MspInit(void)
   __HAL_RCC_SYSCFG_CLK_ENABLE();
   __HAL_RCC_PWR_CLK_ENABLE();
 
-  /* System interrupt init*/
-  /* PendSV_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(PendSV_IRQn, 15, 0);
 
   /** Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
@@ -111,7 +101,6 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
       Error_Handler();
     }
 
-    /* Peripheral clock enable */
     __HAL_RCC_FDCAN_CLK_ENABLE();
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -126,7 +115,6 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
     GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    /* FDCAN1 interrupt Init */
     HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
     /* USER CODE BEGIN FDCAN1_MspInit 1 */
@@ -150,7 +138,6 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* hfdcan)
     /* USER CODE BEGIN FDCAN1_MspDeInit 0 */
 
     /* USER CODE END FDCAN1_MspDeInit 0 */
-    /* Peripheral clock disable */
     __HAL_RCC_FDCAN_CLK_DISABLE();
 
     /**FDCAN1 GPIO Configuration
@@ -159,7 +146,6 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* hfdcan)
     */
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
 
-    /* FDCAN1 interrupt DeInit */
     HAL_NVIC_DisableIRQ(FDCAN1_IT0_IRQn);
     /* USER CODE BEGIN FDCAN1_MspDeInit 1 */
 
@@ -182,7 +168,6 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     /* USER CODE BEGIN SPI2_MspInit 0 */
 
     /* USER CODE END SPI2_MspInit 0 */
-    /* Peripheral clock enable */
     __HAL_RCC_SPI2_CLK_ENABLE();
 
     __HAL_RCC_GPIOF_CLK_ENABLE();
@@ -214,42 +199,27 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
 
 }
 
-/* 初始化 I2C1 的时钟和 PB8/PB9 引脚。 */
 void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 {
-  /* 定义 I2C 引脚初始化结构。 */
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* 仅处理 SSD1306 使用的 I2C1。 */
   if (hi2c->Instance == I2C1)
   {
-    /* 使能 I2C1 外设时钟。 */
     __HAL_RCC_I2C1_CLK_ENABLE();
-    /* 使能 GPIOB 端口时钟。 */
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /* 选择 I2C1 SCL 和 SDA 复用引脚。 */
     GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_9;
-    /* 配置开漏复用输出。 */
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-    /* 使用外部 OLED 模块上的上拉电阻。 */
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    /* 设置 I2C 引脚速度。 */
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    /* 选择 I2C1 复用功能。 */
     GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
-    /* 应用 PB8/PB9 配置。 */
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
   }
 }
 
-/* 释放 I2C1 的时钟和 PB8/PB9 引脚。 */
 void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
 {
-  /* 仅处理 SSD1306 使用的 I2C1。 */
   if (hi2c->Instance == I2C1)
   {
-    /* 关闭 I2C1 外设时钟。 */
     __HAL_RCC_I2C1_CLK_DISABLE();
-    /* 释放 I2C1 SCL 和 SDA 引脚。 */
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8 | GPIO_PIN_9);
   }
 }
@@ -267,7 +237,6 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
     /* USER CODE BEGIN SPI2_MspDeInit 0 */
 
     /* USER CODE END SPI2_MspDeInit 0 */
-    /* Peripheral clock disable */
     __HAL_RCC_SPI2_CLK_DISABLE();
 
     /**SPI2 GPIO Configuration
@@ -311,7 +280,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
       Error_Handler();
     }
 
-    /* Peripheral clock enable */
     __HAL_RCC_USART1_CLK_ENABLE();
 
     __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -326,8 +294,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-    /* USART1 DMA Init */
-    /* USART1_RX Init */
     hdma_usart1_rx.Instance = DMA1_Channel1;
     hdma_usart1_rx.Init.Request = DMA_REQUEST_USART1_RX;
     hdma_usart1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
@@ -344,7 +310,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 
     __HAL_LINKDMA(huart,hdmarx,hdma_usart1_rx);
 
-    /* USART1 interrupt Init */
     HAL_NVIC_SetPriority(USART1_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
     /* USER CODE BEGIN USART1_MspInit 1 */
@@ -366,7 +331,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
       Error_Handler();
     }
 
-    /* Peripheral clock enable */
     __HAL_RCC_USART2_CLK_ENABLE();
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -383,9 +347,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 
     /* USER CODE BEGIN USART2_MspInit 1 */
 
-    /* USART2 使用中断接收 ESP32-12F 的 AT 响应。 */
     HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
-    /* 使能 USART2 全局中断。 */
     HAL_NVIC_EnableIRQ(USART2_IRQn);
 
     /* USER CODE END USART2_MspInit 1 */
@@ -406,7 +368,6 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     /* USER CODE BEGIN USART1_MspDeInit 0 */
 
     /* USER CODE END USART1_MspDeInit 0 */
-    /* Peripheral clock disable */
     __HAL_RCC_USART1_CLK_DISABLE();
 
     /**USART1 GPIO Configuration
@@ -415,10 +376,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     */
     HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4|GPIO_PIN_5);
 
-    /* USART1 DMA DeInit */
     HAL_DMA_DeInit(huart->hdmarx);
 
-    /* USART1 interrupt DeInit */
     HAL_NVIC_DisableIRQ(USART1_IRQn);
     /* USER CODE BEGIN USART1_MspDeInit 1 */
 
@@ -429,7 +388,6 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     /* USER CODE BEGIN USART2_MspDeInit 0 */
 
     /* USER CODE END USART2_MspDeInit 0 */
-    /* Peripheral clock disable */
     __HAL_RCC_USART2_CLK_DISABLE();
 
     /**USART2 GPIO Configuration

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Device and application specific definitions for CANopenNode.
  *
  * @file        CO_driver_target.h
@@ -27,7 +27,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* 引入 STM32 HAL 类型，供 FDCAN 适配层使用。 */
 #include "stm32g4xx_hal.h"
 
 #ifdef CO_DRIVER_CUSTOM
@@ -38,39 +37,25 @@
 extern "C" {
 #endif
 
-/* Stack configuration override default values. For more information see file CO_config.h. */
 
-/* Basic definitions. If big endian, CO_SWAP_xx macros must swap bytes. */
 #define CO_LITTLE_ENDIAN
 #define CO_SWAP_16(x) x
 #define CO_SWAP_32(x) x
 #define CO_SWAP_64(x) x
-/* NULL is defined in stddef.h */
-/* true and false are defined in stdbool.h */
-/* int8_t to uint64_t are defined in stdint.h */
 typedef uint_fast8_t bool_t;
 typedef float float32_t;
 typedef double float64_t;
 
-/* Access to received CAN frame */
-/* 定义接收报文的硬件无关表示。 */
 typedef struct {
-    /* 保存 11 位标准 CAN 标识符。 */
     uint16_t ident;
-    /* 保存实际数据长度，范围为 0 至 8。 */
     uint8_t DLC;
-    /* 保存 Classic CAN 的数据载荷。 */
     uint8_t data[8];
 } CO_CANrxMsg_t;
 
-/* 读取 CANopenNode 接收报文的标识符。 */
 #define CO_CANrxMsg_readIdent(msg) (((CO_CANrxMsg_t*)(msg))->ident)
-/* 读取 CANopenNode 接收报文的数据长度。 */
 #define CO_CANrxMsg_readDLC(msg)   (((CO_CANrxMsg_t*)(msg))->DLC)
-/* 读取 CANopenNode 接收报文的数据指针。 */
 #define CO_CANrxMsg_readData(msg)  (((CO_CANrxMsg_t*)(msg))->data)
 
-/* Received frame object */
 typedef struct {
     uint16_t ident;
     uint16_t mask;
@@ -78,7 +63,6 @@ typedef struct {
     void (*CANrx_callback)(void* object, void* message);
 } CO_CANrx_t;
 
-/* Transmit frame object */
 typedef struct {
     uint32_t ident;
     uint8_t DLC;
@@ -87,7 +71,6 @@ typedef struct {
     volatile bool_t syncFlag;
 } CO_CANtx_t;
 
-/* CAN module object */
 typedef struct {
     void* CANptr;
     CO_CANrx_t* rxArray;
@@ -103,29 +86,23 @@ typedef struct {
     uint32_t errOld;
 } CO_CANmodule_t;
 
-/* Data storage object for one entry */
 typedef struct {
     void* addr;
     size_t len;
     uint8_t subIndexOD;
     uint8_t attr;
-    /* Additional variables (target specific) */
     void* addrNV;
 } CO_storage_entry_t;
 
-/* (un)lock critical section in CO_CANsend() */
 #define CO_LOCK_CAN_SEND(CAN_MODULE)
 #define CO_UNLOCK_CAN_SEND(CAN_MODULE)
 
-/* (un)lock critical section in CO_errorReport() or CO_errorReset() */
 #define CO_LOCK_EMCY(CAN_MODULE)
 #define CO_UNLOCK_EMCY(CAN_MODULE)
 
-/* (un)lock critical section when accessing Object Dictionary */
 #define CO_LOCK_OD(CAN_MODULE)
 #define CO_UNLOCK_OD(CAN_MODULE)
 
-/* Synchronization between CAN receive and data processing threads. */
 #define CO_MemoryBarrier()
 #define CO_FLAG_READ(rxNew) ((rxNew) != NULL)
 #define CO_FLAG_SET(rxNew)                                                                                             \

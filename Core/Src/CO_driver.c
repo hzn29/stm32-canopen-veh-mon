@@ -1,4 +1,4 @@
-/*
+﻿/*
  * CAN module object for generic microcontroller.
  *
  * This file is a template for other microcontrollers.
@@ -24,12 +24,10 @@
 
 void
 CO_CANsetConfigurationMode(void* CANptr) {
-    /* Put CAN module in configuration mode */
 }
 
 void
 CO_CANsetNormalMode(CO_CANmodule_t* CANmodule) {
-    /* Put CAN module in normal mode */
 
     CANmodule->CANnormal = true;
 }
@@ -39,12 +37,10 @@ CO_CANmodule_init(CO_CANmodule_t* CANmodule, void* CANptr, CO_CANrx_t rxArray[],
                   uint16_t txSize, uint16_t CANbitRate) {
     uint16_t i;
 
-    /* verify arguments */
     if (CANmodule == NULL || rxArray == NULL || txArray == NULL) {
         return CO_ERROR_ILLEGAL_ARGUMENT;
     }
 
-    /* Configure object variables */
     CANmodule->CANptr = CANptr;
     CANmodule->rxArray = rxArray;
     CANmodule->rxSize = rxSize;
@@ -68,23 +64,12 @@ CO_CANmodule_init(CO_CANmodule_t* CANmodule, void* CANptr, CO_CANrx_t rxArray[],
         txArray[i].bufferFull = false;
     }
 
-    /* Configure CAN module registers */
 
-    /* Configure CAN timing */
 
-    /* Configure CAN module hardware filters */
     if (CANmodule->useCANrxFilters) {
-        /* CAN module filters are used, they will be configured with */
-        /* CO_CANrxBufferInit() functions, called by separate CANopen */
-        /* init functions. */
-        /* Configure all masks so, that received CAN frame must match filter */
     } else {
-        /* CAN module filters are not used, all CAN frames with standard 11-bit */
-        /* identifier will be received */
-        /* Configure mask 0 so, that all CAN frames with standard identifier are accepted */
     }
 
-    /* configure CAN interrupt registers */
 
     return CO_ERROR_NO;
 }
@@ -92,7 +77,6 @@ CO_CANmodule_init(CO_CANmodule_t* CANmodule, void* CANptr, CO_CANrx_t rxArray[],
 void
 CO_CANmodule_disable(CO_CANmodule_t* CANmodule) {
     if (CANmodule != NULL) {
-        /* turn off the module */
     }
 }
 
@@ -102,21 +86,17 @@ CO_CANrxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, ui
     CO_ReturnError_t ret = CO_ERROR_NO;
 
     if ((CANmodule != NULL) && (object != NULL) && (CANrx_callback != NULL) && (index < CANmodule->rxSize)) {
-        /* buffer, which will be configured */
         CO_CANrx_t* buffer = &CANmodule->rxArray[index];
 
-        /* Configure object variables */
         buffer->object = object;
         buffer->CANrx_callback = CANrx_callback;
 
-        /* CAN identifier and CAN mask, bit aligned with CAN module. Different on different microcontrollers. */
         buffer->ident = ident & 0x07FFU;
         if (rtr) {
             buffer->ident |= 0x0800U;
         }
         buffer->mask = (mask & 0x07FFU) | 0x0800U;
 
-        /* Set CAN hardware module filter and mask. */
         if (CANmodule->useCANrxFilters) {}
     } else {
         ret = CO_ERROR_ILLEGAL_ARGUMENT;
@@ -131,10 +111,8 @@ CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bo
     CO_CANtx_t* buffer = NULL;
 
     if ((CANmodule != NULL) && (index < CANmodule->txSize)) {
-        /* get specific buffer */
         buffer = &CANmodule->txArray[index];
 
-        /* CAN identifier, DLC and rtr, bit aligned with CAN module transmit buffer, microcontroller specific. */
         buffer->ident = ((uint32_t)ident & 0x07FFU) | ((uint32_t)(((uint32_t)noOfBytes & 0xFU) << 11U))
                         | ((uint32_t)(rtr ? 0x8000U : 0U));
 
@@ -147,46 +125,28 @@ CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bo
 
 CO_ReturnError_t
 CO_CANsend(CO_CANmodule_t* CANmodule, CO_CANtx_t* buffer) {
-    /* 将 CANopenNode 的 CAN 模块指针转换为 STM32 FDCAN 句柄。 */
     FDCAN_HandleTypeDef* hfdcan = (FDCAN_HandleTypeDef*)CANmodule->CANptr;
-    /* 创建并清零 STM32 HAL 发送报文头。 */
     FDCAN_TxHeaderTypeDef txHeader = {0};
-    /* 配置标准 11 位 CANopen COB-ID。 */
     txHeader.Identifier = buffer->ident & 0x07FFU;
-    /* 选择标准标识符格式。 */
     txHeader.IdType = FDCAN_STANDARD_ID;
-    /* 选择数据帧格式。 */
     txHeader.TxFrameType = FDCAN_DATA_FRAME;
-    /* 读取 CANopenNode 已编码的数据长度。 */
     uint8_t dataLength = (uint8_t)((buffer->ident >> 11U) & 0x0FU);
-    /* 将 0 至 7 字节长度映射到 HAL 的 Classic CAN DLC 枚举。 */
     txHeader.DataLength = (dataLength == 0U) ? FDCAN_DLC_BYTES_0 : ((dataLength == 1U) ? FDCAN_DLC_BYTES_1 :
                           ((dataLength == 2U) ? FDCAN_DLC_BYTES_2 : ((dataLength == 3U) ? FDCAN_DLC_BYTES_3 :
                           ((dataLength == 4U) ? FDCAN_DLC_BYTES_4 : ((dataLength == 5U) ? FDCAN_DLC_BYTES_5 :
                           ((dataLength == 6U) ? FDCAN_DLC_BYTES_6 : ((dataLength == 7U) ? FDCAN_DLC_BYTES_7 : FDCAN_DLC_BYTES_8)))))));
-    /* 标记发送帧为错误主动状态。 */
     txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-    /* 关闭 Classic CAN 不支持的数据段位速率切换。 */
     txHeader.BitRateSwitch = FDCAN_BRS_OFF;
-    /* 选择 Classic CAN 帧格式。 */
     txHeader.FDFormat = FDCAN_CLASSIC_CAN;
-    /* 不保存 CANopenNode 发送事件。 */
     txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-    /* 清零发送事件标记。 */
     txHeader.MessageMarker = 0U;
-    /* 将 CANopenNode 报文放入 STM32 FDCAN 发送 FIFO。 */
     if (HAL_FDCAN_AddMessageToTxFifoQ(hfdcan, &txHeader, buffer->data) != HAL_OK)
     {
-        /* 发送失败时记录 CANopenNode 发送溢出状态。 */
         CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
-        /* 返回 CANopenNode 发送溢出错误。 */
         return CO_ERROR_TX_OVERFLOW;
     }
-    /* 清除当前发送缓冲区占用标志。 */
     buffer->bufferFull = false;
-    /* 记录 CANopenNode 已经完成首次发送。 */
     CANmodule->firstCANtxMessage = false;
-    /* 返回 CANopenNode 成功状态。 */
     return CO_ERROR_NO;
 }
 
@@ -198,11 +158,9 @@ CO_CANclearPendingSyncPDOs(CO_CANmodule_t* CANmodule) {
     /* Abort frame from CAN module, if there is synchronous TPDO.
      * Take special care with this functionality. */
     if (/* CAN frameIsOnCanBuffer && */ CANmodule->bufferInhibitFlag) {
-        /* clear TXREQ */
         CANmodule->bufferInhibitFlag = false;
         tpdoDeleted = 1U;
     }
-    /* delete also pending synchronous TPDOs in TX buffers */
     if (CANmodule->CANtxCount != 0U) {
         uint16_t i;
         CO_CANtx_t* buffer = &CANmodule->txArray[0];
@@ -224,7 +182,6 @@ CO_CANclearPendingSyncPDOs(CO_CANmodule_t* CANmodule) {
     }
 }
 
-/* Get error counters from the module. If necessary, function may use different way to determine errors. */
 static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
 
 void
@@ -239,36 +196,30 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
         CANmodule->errOld = err;
 
         if (txErrors >= 256U) {
-            /* bus off */
             status |= CO_CAN_ERRTX_BUS_OFF;
         } else {
-            /* recalculate CANerrorStatus, first clear some flags */
             status &= 0xFFFF
                       ^ (CO_CAN_ERRTX_BUS_OFF | CO_CAN_ERRRX_WARNING | CO_CAN_ERRRX_PASSIVE | CO_CAN_ERRTX_WARNING
                          | CO_CAN_ERRTX_PASSIVE);
 
-            /* rx bus warning or passive */
             if (rxErrors >= 128) {
                 status |= CO_CAN_ERRRX_WARNING | CO_CAN_ERRRX_PASSIVE;
             } else if (rxErrors >= 96) {
                 status |= CO_CAN_ERRRX_WARNING;
             }
 
-            /* tx bus warning or passive */
             if (txErrors >= 128) {
                 status |= CO_CAN_ERRTX_WARNING | CO_CAN_ERRTX_PASSIVE;
             } else if (txErrors >= 96) {
                 status |= CO_CAN_ERRTX_WARNING;
             }
 
-            /* if not tx passive clear also overflow */
             if ((status & CO_CAN_ERRTX_PASSIVE) == 0) {
                 status &= 0xFFFF ^ CO_CAN_ERRTX_OVERFLOW;
             }
         }
 
         if (overflow != 0) {
-            /* CAN RX bus overflow */
             status |= CO_CAN_ERRRX_OVERFLOW;
         }
 
@@ -279,7 +230,6 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
 void
 CO_CANinterrupt(CO_CANmodule_t* CANmodule) {
 
-    /* receive interrupt */
     if (1) {
         CO_CANrxMsg_t* rcvMsg;     /* pointer to received CAN frame in CAN module */
         uint16_t index;            /* index of received CAN frame */
@@ -290,18 +240,14 @@ CO_CANinterrupt(CO_CANmodule_t* CANmodule) {
         rcvMsg = 0; /* get CAN frame from module here */
         rcvMsgIdent = rcvMsg->ident;
         if (CANmodule->useCANrxFilters) {
-            /* CAN module filters are used. CAN frame with known 11-bit identifier has been received */
             index = 0; /* get index of the received CAN frame here. Or something similar */
             if (index < CANmodule->rxSize) {
                 buffer = &CANmodule->rxArray[index];
-                /* verify also RTR */
                 if (((rcvMsgIdent ^ buffer->ident) & buffer->mask) == 0U) {
                     msgMatched = true;
                 }
             }
         } else {
-            /* CAN module filters are not used, CAN frame with any standard 11-bit identifier */
-            /* has been received. Search rxArray form CANmodule for the same CAN-ID. */
             buffer = &CANmodule->rxArray[0];
             for (index = CANmodule->rxSize; index > 0U; index--) {
                 if (((rcvMsgIdent ^ buffer->ident) & buffer->mask) == 0U) {
@@ -312,49 +258,35 @@ CO_CANinterrupt(CO_CANmodule_t* CANmodule) {
             }
         }
 
-        /* Call specific function, which will process the CAN frame */
         if (msgMatched && (buffer != NULL) && (buffer->CANrx_callback != NULL)) {
             buffer->CANrx_callback(buffer->object, (void*)rcvMsg);
         }
 
-        /* Clear interrupt flag */
     }
 
-    /* transmit interrupt */
     else if (0) {
-        /* Clear interrupt flag */
 
-        /* First CAN frame (bootup) was sent successfully */
         CANmodule->firstCANtxMessage = false;
-        /* clear flag from previous CAN frame */
         CANmodule->bufferInhibitFlag = false;
-        /* Are there any new CAN frames waiting to be send */
         if (CANmodule->CANtxCount > 0U) {
             uint16_t i; /* index of transmitting CAN frame */
 
-            /* first buffer */
             CO_CANtx_t* buffer = &CANmodule->txArray[0];
-            /* search through whole array of pointers to transmit CAN frame buffers. */
             for (i = CANmodule->txSize; i > 0U; i--) {
-                /* if CAN frame buffer is full, send it. */
                 if (buffer->bufferFull) {
                     buffer->bufferFull = false;
                     CANmodule->CANtxCount--;
 
-                    /* Copy CAN frame to CAN buffer */
                     CANmodule->bufferInhibitFlag = buffer->syncFlag;
-                    /* canSend... */
                     break; /* exit for loop */
                 }
                 buffer++;
             } /* end of for loop */
 
-            /* Clear counter if no more CAN frames */
             if (i == 0U) {
                 CANmodule->CANtxCount = 0U;
             }
         }
     } else {
-        /* some other interrupt reason */
     }
 }

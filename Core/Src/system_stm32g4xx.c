@@ -1,4 +1,4 @@
-/**
+﻿/**
   ******************************************************************************
   * @file    system_stm32g4xx.c
   * @author  MCD Application Team
@@ -101,18 +101,15 @@
   * @{
   */
 
-/************************* Miscellaneous Configuration ************************/
 /* Note: Following vector table addresses must be defined in line with linker
          configuration. */
 /*!< Uncomment the following line if you need to relocate the vector table
      anywhere in Flash or Sram, else the vector table is kept at the automatic
      remap of boot address selected */
-/* #define USER_VECT_TAB_ADDRESS */
 
 #if defined(USER_VECT_TAB_ADDRESS)
 /*!< Uncomment the following line if you need to relocate your vector Table
      in Sram else user remap will be done in Flash. */
-/* #define VECT_TAB_SRAM */
 #if defined(VECT_TAB_SRAM)
 #define VECT_TAB_BASE_ADDRESS   SRAM_BASE       /*!< Vector Table base address field.
                                                      This value must be a multiple of 0x200. */
@@ -127,7 +124,6 @@
 #endif /* VECT_TAB_OFFSET */
 
 #endif /* USER_VECT_TAB_ADDRESS */
-/******************************************************************************/
 /**
   * @}
   */
@@ -180,12 +176,10 @@
 
 void SystemInit(void)
 {
-  /* FPU settings ------------------------------------------------------------*/
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
   #endif
 
-  /* Configure the Vector Table location add offset address ------------------*/
 #if defined(USER_VECT_TAB_ADDRESS)
   SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
 #endif /* USER_VECT_TAB_ADDRESS */
@@ -231,7 +225,6 @@ void SystemCoreClockUpdate(void)
 {
   uint32_t tmp, pllvco, pllr, pllsource, pllm;
 
-  /* Get SYSCLK source -------------------------------------------------------*/
   switch (RCC->CFGR & RCC_CFGR_SWS)
   {
     case 0x04:  /* HSI used as system clock source */
@@ -264,10 +257,7 @@ void SystemCoreClockUpdate(void)
     default:
       break;
   }
-  /* Compute HCLK clock frequency --------------------------------------------*/
-  /* Get HCLK prescaler */
   tmp = AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
-  /* HCLK clock frequency */
   SystemCoreClock >>= tmp;
 }
 

@@ -1,51 +1,42 @@
-/* 车辆仪表盘统一告警状态机接口。 */
-#ifndef VEHICLE_ALARM_H
+﻿#ifndef VEHICLE_ALARM_H
 #define VEHICLE_ALARM_H
 
-/* 引入 CANopen 诊断数据类型。 */
 #include "canopen_port.h"
 
-/* 定义车辆仪表盘的总体告警状态。 */
 typedef enum
 {
-  VEHICLE_ALARM_NORMAL = 0U, /* 所有监控项正常。 */
-  VEHICLE_ALARM_WARNING = 1U, /* 存在经确认的一般告警。 */
-  VEHICLE_ALARM_FAULT = 2U, /* 存在严重通信或总线故障。 */
-  VEHICLE_ALARM_RECOVERING = 3U /* 故障消失，正在进行恢复确认。 */
+  VEHICLE_ALARM_NORMAL = 0U, /* 鎵€鏈夌洃鎺ч」姝ｅ父銆?*/
+  VEHICLE_ALARM_WARNING = 1U, /* 瀛樺湪缁忕‘璁ょ殑涓€鑸憡璀︺€?*/
+  VEHICLE_ALARM_FAULT = 2U, /* 瀛樺湪涓ラ噸閫氫俊鎴栨€荤嚎鏁呴殰銆?*/
+  VEHICLE_ALARM_RECOVERING = 3U /* 鏁呴殰娑堝け锛屾鍦ㄨ繘琛屾仮澶嶇‘璁ゃ€?*/
 } VehicleAlarmState_t;
 
-/* 定义仪表盘使用的统一告警位。 */
-#define VEHICLE_ALARM_IMU_INVALID (1UL << 0U) /* IMU 数据无效。 */
-#define VEHICLE_ALARM_GNSS_INVALID (1UL << 1U) /* GNSS 数据无效。 */
-#define VEHICLE_ALARM_NODE_B_TIMEOUT (1UL << 2U) /* B 节点 Heartbeat 超时。 */
-#define VEHICLE_ALARM_NODE_C_TIMEOUT (1UL << 3U) /* C 节点 Heartbeat 超时。 */
-#define VEHICLE_ALARM_MQTT_OFFLINE (1UL << 4U) /* MQTT 未连接。 */
-#define VEHICLE_ALARM_CAN_BUS_OFF (1UL << 5U) /* FDCAN 当前处于 Bus-Off。 */
+#define VEHICLE_ALARM_IMU_INVALID (1UL << 0U) /* IMU 鏁版嵁鏃犳晥銆?*/
+#define VEHICLE_ALARM_GNSS_INVALID (1UL << 1U) /* GNSS 鏁版嵁鏃犳晥銆?*/
+#define VEHICLE_ALARM_NODE_B_TIMEOUT (1UL << 2U) /* B 鑺傜偣 Heartbeat 瓒呮椂銆?*/
+#define VEHICLE_ALARM_NODE_C_TIMEOUT (1UL << 3U) /* C 鑺傜偣 Heartbeat 瓒呮椂銆?*/
+#define VEHICLE_ALARM_MQTT_OFFLINE (1UL << 4U) /* MQTT 鏈繛鎺ャ€?*/
+#define VEHICLE_ALARM_CAN_BUS_OFF (1UL << 5U) /* FDCAN 褰撳墠澶勪簬 Bus-Off銆?*/
 
-/* 保存告警状态机快照，供 OLED、MQTT 和调试器统一读取。 */
 typedef struct
 {
-  uint8_t state; /* 保存当前总体告警状态。 */
-  uint32_t rawAlarmBits; /* 保存未经连续周期滤波的原始异常位。 */
-  uint32_t activeAlarmBits; /* 保存当前已确认或立即生效的告警位。 */
-  uint32_t warningConfirmCount; /* 保存连续一般异常周期数。 */
-  uint32_t recoveryConfirmCount; /* 保存连续正常恢复周期数。 */
-  uint32_t faultEnterCount; /* 统计进入 FAULT 的次数。 */
-  uint32_t warningEnterCount; /* 统计进入 WARNING 的次数。 */
-  uint32_t recoveryEnterCount; /* 统计进入 RECOVERING 的次数。 */
-  uint32_t normalEnterCount; /* 统计恢复到 NORMAL 的次数。 */
-  uint32_t lastTransitionTick; /* 保存最近一次状态转换的 HAL 节拍。 */
+  uint8_t state; /* 淇濆瓨褰撳墠鎬讳綋鍛婅鐘舵€併€?*/
+  uint32_t rawAlarmBits; /* 淇濆瓨鏈粡杩炵画鍛ㄦ湡婊ゆ尝鐨勫師濮嬪紓甯镐綅銆?*/
+  uint32_t activeAlarmBits; /* 淇濆瓨褰撳墠宸茬‘璁ゆ垨绔嬪嵆鐢熸晥鐨勫憡璀︿綅銆?*/
+  uint32_t warningConfirmCount; /* 淇濆瓨杩炵画涓€鑸紓甯稿懆鏈熸暟銆?*/
+  uint32_t recoveryConfirmCount; /* 淇濆瓨杩炵画姝ｅ父鎭㈠鍛ㄦ湡鏁般€?*/
+  uint32_t faultEnterCount; /* 缁熻杩涘叆 FAULT 鐨勬鏁般€?*/
+  uint32_t warningEnterCount; /* 缁熻杩涘叆 WARNING 鐨勬鏁般€?*/
+  uint32_t recoveryEnterCount; /* 缁熻杩涘叆 RECOVERING 鐨勬鏁般€?*/
+  uint32_t normalEnterCount; /* 缁熻鎭㈠鍒?NORMAL 鐨勬鏁般€?*/
+  uint32_t lastTransitionTick; /* 淇濆瓨鏈€杩戜竴娆＄姸鎬佽浆鎹㈢殑 HAL 鑺傛媿銆?*/
 } VehicleAlarmStatus_t;
 
-/* 初始化车辆告警状态机。 */
 void VehicleAlarm_Init(void);
-/* 使用当前诊断、Bus-Off 和 MQTT 状态更新一次状态机。 */
 void VehicleAlarm_Update(const CanOpenPortDiagnostics_t *diagnostics,
                          uint8_t canBusOffActive,
                          uint8_t mqttConnected);
-/* 复制当前告警状态快照。 */
 void VehicleAlarm_GetStatus(volatile VehicleAlarmStatus_t *status);
-/* 返回适合 OLED 显示的状态字符串。 */
 const char *VehicleAlarm_GetStateText(uint8_t state);
 
 #endif /* VEHICLE_ALARM_H */
