@@ -90,3 +90,4 @@ diagnostics.nmtState
 ```
 
 其中 B 使用 `heartbeatB`，C 使用 `heartbeatC`。只有 A 固件会监控 B/C；在 B、C 固件中，这两个监控项通常保持 `UNCONFIGURED`。
+> Updated build flow: select `NodeA`, `NodeB`, or `NodeC` in `MDK-ARM/can00.uvprojx`; each target fixes the node role.

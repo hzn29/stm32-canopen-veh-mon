@@ -314,9 +314,9 @@ OD_ATTR_PERSIST_COMM OD_PERSIST_COMM_t OD_PERSIST_COMM = {
         .numberOfMappedApplicationObjectsInPDO = 0x05,
         .applicationObject1 = 0x21200008,
         .applicationObject2 = 0x21210008,
-        .applicationObject3 = 0x21220010,
-        .applicationObject4 = 0x21230010,
-        .applicationObject5 = 0x21240010,
+        .applicationObject3 = 0x21220020,
+        .applicationObject4 = 0x21230008,
+        .applicationObject5 = 0x21240008,
 #else
         .numberOfMappedApplicationObjectsInPDO = 0x00,
         .applicationObject1 = 0x00000000,
@@ -1404,17 +1404,17 @@ static CO_PROGMEM ODObjs_t ODObjs = {
     .o_2122_accidentEventId = {
         .dataOrig = &OD_RAM.x2122_accidentEventId,
         .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
-        .dataLength = 2
+        .dataLength = 4
     },
     .o_2123_peakAccelMg = {
         .dataOrig = &OD_RAM.x2123_peakAccelMg,
         .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
-        .dataLength = 2
+        .dataLength = 1
     },
     .o_2124_peakGyroDps = {
         .dataOrig = &OD_RAM.x2124_peakGyroDps,
         .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
-        .dataLength = 2
+        .dataLength = 1
     }
 };
 

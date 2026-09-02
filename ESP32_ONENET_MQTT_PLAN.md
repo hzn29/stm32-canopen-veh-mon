@@ -222,3 +222,6 @@ esp32Status.downlinkTestFailCount
 3. 暂停 ESP32 MQTT 连接，确认 A 的 `accidentEventQueuedCount` 增加而 `accidentEventSentCount` 不变；恢复连接后确认队列补发并计数增加。
 4. 重复发送同一 `event_id` 的 `0x382` 帧，确认 A 的 `accidentEventDuplicateCount` 增加且不会产生第二条 MQTT 事件。
 5. 观察 B 的厂商 EMCY 错误位和保持窗口结束后的 EMCY 清除报文。
+## Implementation update
+
+The current code defaults to TLS server certificate verification (`ESP32_MQTT_TLS_VERIFY_SERVER=1U`) and refuses to connect until `ESP32_MQTT_CA_CERT_CONFIGURED=1U`. The accident event and ACK protocols now carry a full 32-bit event ID; see `README.md` and `ACCIDENT_ACK_PERSIST_EXPERIMENT.md` for the authoritative frame layout.

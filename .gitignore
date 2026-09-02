@@ -1,5 +1,8 @@
 # Keil/CubeIDE 编译输出
 MDK-ARM/can00/
+MDK-ARM/NodeA/
+MDK-ARM/NodeB/
+MDK-ARM/NodeC/
 MDK-ARM/*.uvoptx
 MDK-ARM/*.uvguix*
 MDK-ARM/DebugConfig/

@@ -469,6 +469,11 @@ static HAL_StatusTypeDef ESP32_Connect(void)
   esp32Status.state = ESP32_STATE_WAIT_CONFIG;
   return HAL_ERROR;
 #else
+#if (ESP32_MQTT_TLS_ENABLED != 0U) && (ESP32_MQTT_TLS_VERIFY_SERVER != 0U) && \
+    (ESP32_MQTT_CA_CERT_CONFIGURED == 0U)
+  esp32Status.state = ESP32_STATE_WAIT_CONFIG;
+  return HAL_ERROR;
+#endif
   if (ESP32_Command("AT\r\n", 1000U) != HAL_OK)
   {
     esp32Status.state = ESP32_STATE_ERROR;

@@ -52,3 +52,4 @@
 - `diagnostics.nodeBHealthy` 和 `diagnostics.nodeCHealthy` 同时参考 Heartbeat 与应用 PDO 新鲜度。
 - A 节点在 Heartbeat 正常但应用 PDO 超时时暂缓回到 Operational，数据恢复后再自动恢复。
 - IMU 对象单位为传感器原始 ADC 计数，后续可在 A 节点按量程换算为物理单位。
+> Updated build flow: select `NodeA`, `NodeB`, or `NodeC` in `MDK-ARM/can00.uvprojx`; do not edit `CAN_NODE_ROLE` manually.

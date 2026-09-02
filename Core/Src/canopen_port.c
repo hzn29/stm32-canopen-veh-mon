@@ -26,7 +26,7 @@ typedef struct
 } CanOpenAccidentRxItem_t;
 typedef struct
 {
-  uint32_t eventId; /* 淇濆瓨 A 鑺傜偣 ACK 鐨勪簨鏁呬簨浠剁紪鍙枫€?*/
+  uint32_t eventId;
 } CanOpenAccidentAckRxItem_t;
 static QueueHandle_t accidentRxQueue;
 static QueueHandle_t accidentAckRxQueue;
@@ -67,12 +67,15 @@ static void CanOpenPort_HandleAccidentAck(uint16_t identifier, uint8_t dataLengt
 {
 #if (CAN_NODE_ROLE == CAN_NODE_ROLE_B)
   if ((identifier != (uint16_t)(0x500U + CANOPEN_NODE_ID)) ||
-      (dataLength != 2U) || (data == NULL))
+      (dataLength != 4U) || (data == NULL))
   {
     return;
   }
   CanOpenAccidentAckRxItem_t item = {0};
-  item.eventId = (uint32_t)data[0] | ((uint32_t)data[1] << 8U);
+  item.eventId = (uint32_t)data[0] |
+                 ((uint32_t)data[1] << 8U) |
+                 ((uint32_t)data[2] << 16U) |
+                 ((uint32_t)data[3] << 24U);
   BaseType_t higherPriorityTaskWoken = pdFALSE;
   if ((accidentAckRxQueue == NULL) ||
       (xQueueSendFromISR(accidentAckRxQueue, &item, &higherPriorityTaskWoken) != pdPASS))
@@ -95,7 +98,7 @@ static void CanOpenPort_ProcessAccidentAckQueue(void)
          (xQueueReceive(accidentAckRxQueue, &item, 0U) == pdPASS))
   {
     if ((accidentPending.pendingValid != 0U) &&
-        ((uint16_t)accidentPending.pendingEventId == (uint16_t)item.eventId))
+        (accidentPending.pendingEventId == item.eventId))
     {
       accidentPending.pendingValid = 0U;
       accidentPending.pendingRetryCount = 0U;
@@ -154,7 +157,10 @@ static void CanOpenPort_ProcessAccidentEventQueue(void)
       canopenDiagnostics.accidentEventInvalidCount++;
       continue;
     }
-    uint32_t eventId = (uint32_t)item.data[2] | ((uint32_t)item.data[3] << 8U);
+    uint32_t eventId = (uint32_t)item.data[2] |
+                       ((uint32_t)item.data[3] << 8U) |
+                       ((uint32_t)item.data[4] << 16U) |
+                       ((uint32_t)item.data[5] << 24U);
     (void)CanOpenPort_SendAccidentAck(eventId);
     if ((receivedAccidentEventValid != 0U) &&
         (eventId == lastReceivedAccidentEventId))
@@ -164,8 +170,8 @@ static void CanOpenPort_ProcessAccidentEventQueue(void)
     }
     receivedAccidentEventValid = 1U;
     lastReceivedAccidentEventId = eventId;
-    uint32_t peakAccelMg = (uint32_t)item.data[4] | ((uint32_t)item.data[5] << 8U);
-    uint32_t peakGyroDps = (uint32_t)item.data[6] | ((uint32_t)item.data[7] << 8U);
+    uint32_t peakAccelMg = (uint32_t)item.data[6] * CANOPEN_ACCIDENT_ACCEL_UNIT_MG;
+    uint32_t peakGyroDps = (uint32_t)item.data[7] * CANOPEN_ACCIDENT_GYRO_UNIT_DPS;
     AccidentDetector_ApplyRemoteEvent(item.data[0], eventId, peakAccelMg, peakGyroDps);
     ESP32_QueueAccidentEvent(eventId, item.data[0], (uint16_t)peakAccelMg, (uint16_t)peakGyroDps);
     canopenDiagnostics.lastAccidentEventId = eventId;
@@ -480,31 +486,15 @@ CO_ReturnError_t CanOpenPort_StackInit(uint8_t nodeId)
 
 void CanOpenPort_RxInterrupt(uint16_t identifier, uint8_t dataLength, const uint8_t *data)
 {
-  CO_CANrxMsg_t message = {0};
-  CO_CANrx_t *matched = NULL;
   if ((canopenObject == NULL) || (data == NULL))
   {
     return;
   }
-  message.ident = identifier & 0x07FFU;
-  message.DLC = (dataLength > 8U) ? 8U : dataLength;
-  memcpy(message.data, data, message.DLC);
-  for (uint16_t index = 0U; index < canopenObject->CANmodule->rxSize; index++)
-  {
-    CO_CANrx_t *entry = &canopenObject->CANmodule->rxArray[index];
-    if ((entry->CANrx_callback != NULL) && (((message.ident ^ entry->ident) & entry->mask) == 0U))
-    {
-      matched = entry;
-      break;
-    }
-  }
-  if (matched != NULL)
-  {
-    matched->CANrx_callback(matched->object, &message);
-  }
-  CanOpenPort_HandleAccidentFrame(message.ident, message.DLC, message.data);
-  CanOpenPort_HandleAccidentAck(message.ident, message.DLC, message.data);
-  CanOpenPort_RecordPdoFrame(message.ident, message.DLC);
+  uint8_t stackLength = (dataLength > 8U) ? 8U : dataLength;
+  CO_CANinterruptMessage(canopenObject->CANmodule, identifier, stackLength, data);
+  CanOpenPort_HandleAccidentFrame(identifier & 0x07FFU, dataLength, data);
+  CanOpenPort_HandleAccidentAck(identifier & 0x07FFU, dataLength, data);
+  CanOpenPort_RecordPdoFrame(identifier & 0x07FFU, dataLength);
 }
 
 void CanOpenPort_Process(uint32_t timeDifferenceUs)
@@ -580,7 +570,7 @@ CO_ReturnError_t CanOpenPort_SendAccidentEvent(uint8_t eventType, uint32_t event
                                                uint32_t peakAccelMg, uint32_t peakGyroDps)
 {
 #if (CAN_NODE_ROLE == CAN_NODE_ROLE_B)
-  uint32_t infoCode = (uint32_t)eventType | ((eventId & 0xFFFFU) << 8U);
+  uint32_t infoCode = eventId;
   if ((eventType != ACCIDENT_EVENT_COLLISION) &&
       (eventType != ACCIDENT_EVENT_ROLLOVER))
   {
@@ -590,21 +580,23 @@ CO_ReturnError_t CanOpenPort_SendAccidentEvent(uint8_t eventType, uint32_t event
   {
     return CO_ERROR_ILLEGAL_ARGUMENT;
   }
-  uint16_t accel16 = (peakAccelMg > 0xFFFFU) ? 0xFFFFU : (uint16_t)peakAccelMg;
-  uint16_t gyro16 = (peakGyroDps > 0xFFFFU) ? 0xFFFFU : (uint16_t)peakGyroDps;
   OD_RAM.x2120_accidentType = eventType;
   OD_RAM.x2121_accidentFlags = 0U;
-  OD_RAM.x2122_accidentEventId = (uint16_t)eventId;
-  OD_RAM.x2123_peakAccelMg = accel16;
-  OD_RAM.x2124_peakGyroDps = gyro16;
+  uint32_t accelUnit = (peakAccelMg + CANOPEN_ACCIDENT_ACCEL_UNIT_MG - 1U) /
+                       CANOPEN_ACCIDENT_ACCEL_UNIT_MG;
+  uint32_t gyroUnit = (peakGyroDps + CANOPEN_ACCIDENT_GYRO_UNIT_DPS - 1U) /
+                      CANOPEN_ACCIDENT_GYRO_UNIT_DPS;
+  OD_RAM.x2122_accidentEventId = eventId;
+  OD_RAM.x2123_peakAccelMg = (accelUnit > 0xFFU) ? 0xFFU : (uint8_t)accelUnit;
+  OD_RAM.x2124_peakGyroDps = (gyroUnit > 0xFFU) ? 0xFFU : (uint8_t)gyroUnit;
   OD_requestTPDO(OD_ENTRY_H2120, 2U);
-  canopenDiagnostics.lastAccidentEventId = (uint16_t)eventId;
+  canopenDiagnostics.lastAccidentEventId = eventId;
   canopenDiagnostics.lastAccidentEventType = eventType;
   canopenDiagnostics.accidentEventTxCount++;
   if ((accidentPending.pendingValid == 0U) ||
-      ((uint16_t)accidentPending.pendingEventId != (uint16_t)eventId))
+      (accidentPending.pendingEventId != eventId))
   {
-    accidentPending.pendingEventId = (uint16_t)eventId;
+    accidentPending.pendingEventId = eventId;
     accidentPending.lastEventId = eventId;
     accidentPending.pendingEventType = eventType;
     accidentPending.pendingPeakAccelMg = peakAccelMg;
@@ -631,11 +623,11 @@ CO_ReturnError_t CanOpenPort_SendAccidentAck(uint32_t eventId)
 {
 #if (CAN_NODE_ROLE == CAN_NODE_ROLE_A)
   FDCAN_TxHeaderTypeDef header = {0};
-  uint8_t data[2] = {0};
+  uint8_t data[4] = {0};
   header.Identifier = 0x502U;
   header.IdType = FDCAN_STANDARD_ID;
   header.TxFrameType = FDCAN_DATA_FRAME;
-  header.DataLength = FDCAN_DLC_BYTES_2;
+  header.DataLength = FDCAN_DLC_BYTES_4;
   header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   header.BitRateSwitch = FDCAN_BRS_OFF;
   header.FDFormat = FDCAN_CLASSIC_CAN;
@@ -643,6 +635,8 @@ CO_ReturnError_t CanOpenPort_SendAccidentAck(uint32_t eventId)
   header.MessageMarker = 0U;
   data[0] = (uint8_t)(eventId & 0xFFU);
   data[1] = (uint8_t)((eventId >> 8U) & 0xFFU);
+  data[2] = (uint8_t)((eventId >> 16U) & 0xFFU);
+  data[3] = (uint8_t)((eventId >> 24U) & 0xFFU);
   if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &header, data) == HAL_OK)
   {
     canopenDiagnostics.accidentAckTxCount++;

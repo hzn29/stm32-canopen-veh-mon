@@ -1,29 +1,33 @@
-﻿#include "esp32_persist.h"
+#include "esp32_persist.h"
 #include "esp32_mqtt_config.h"
 #include <string.h>
 
-#define ESP32_PERSIST_FLASH_ADDRESS 0x0807F800U
+#define ESP32_PERSIST_PAGE0 0x0807F000U
+#define ESP32_PERSIST_PAGE1 0x0807F800U
 #define ESP32_PERSIST_MAGIC 0x45535032UL
-#define ESP32_PERSIST_VERSION 2U
+#define ESP32_PERSIST_VERSION 3U
+#define ESP32_PERSIST_SLOT_SIZE 48U
+#define ESP32_PERSIST_SLOTS_PER_PAGE (FLASH_PAGE_SIZE / ESP32_PERSIST_SLOT_SIZE)
 
 typedef struct
 {
-  uint32_t magic; /* 淇濆瓨璁板綍鏈夋晥鏍囪瘑銆?*/
-  uint32_t version; /* 淇濆瓨璁板綍鐗堟湰鍙枫€?*/
-  uint32_t periodMs; /* 淇濆瓨 MQTT 鍙戝竷鍛ㄦ湡銆?*/
-  uint32_t lastEventId; /* 淇濆瓨宸茬粡鍒嗛厤杩囩殑鏈€澶т簨鏁呬簨浠剁紪鍙枫€?*/
-  uint32_t pendingEventId; /* 淇濆瓨灏氭湭鏀跺埌 ACK 鐨勪簨鏁呬簨浠剁紪鍙枫€?*/
-  uint32_t pendingPeakAccelMg; /* 淇濆瓨寰呯‘璁や簨浠剁殑鍔犻€熷害宄板€笺€?*/
-  uint32_t pendingPeakGyroDps; /* 淇濆瓨寰呯‘璁や簨浠剁殑瑙掗€熷害宄板€笺€?*/
-  uint32_t pendingMeta; /* 淇濆瓨浜嬩欢绫诲瀷銆佹湁鏁堟爣蹇楀拰閲嶈瘯娆℃暟銆?*/
-  uint32_t reserved; /* 淇濈暀瀛楁锛屼繚璇佸弻瀛楀啓鍏ュ拰鐗堟湰鎵╁睍绌洪棿銆?*/
-  uint32_t crc; /* 淇濆瓨鍓嶅叓涓瓧娈电殑鏍￠獙鍊笺€?*/
+  uint32_t magic;
+  uint32_t version;
+  uint32_t sequence;
+  uint32_t periodMs;
+  uint32_t lastEventId;
+  uint32_t pendingEventId;
+  uint32_t pendingPeakAccelMg;
+  uint32_t pendingPeakGyroDps;
+  uint32_t pendingMeta;
+  uint32_t reserved;
+  uint32_t crc;
 } ESP32_PersistRecord_t;
 
 static uint32_t ESP32_Persist_Crc(const uint32_t *data, uint32_t words)
 {
   uint32_t crc = 0xFFFFFFFFUL;
-  uint32_t index = 0U;
+  uint32_t index;
   for (index = 0U; index < (words * 4U); index++)
   {
     crc ^= ((const uint8_t *)data)[index];
@@ -35,40 +39,143 @@ static uint32_t ESP32_Persist_Crc(const uint32_t *data, uint32_t words)
   return crc ^ 0xFFFFFFFFUL;
 }
 
+static uint8_t ESP32_Persist_RecordValid(const ESP32_PersistRecord_t *record)
+{
+  return (record != NULL) &&
+         (record->magic == ESP32_PERSIST_MAGIC) &&
+         (record->version == ESP32_PERSIST_VERSION) &&
+         (record->crc == ESP32_Persist_Crc(&record->magic, 10U));
+}
+
+static const ESP32_PersistRecord_t *ESP32_Persist_FindLatest(uint32_t *address)
+{
+  const ESP32_PersistRecord_t *latest = NULL;
+  uint32_t latestAddress = 0U;
+  const uint32_t pages[2] = {ESP32_PERSIST_PAGE0, ESP32_PERSIST_PAGE1};
+  for (uint32_t page = 0U; page < 2U; page++)
+  {
+    for (uint32_t slot = 0U; slot < ESP32_PERSIST_SLOTS_PER_PAGE; slot++)
+    {
+      uint32_t candidateAddress = pages[page] + (slot * ESP32_PERSIST_SLOT_SIZE);
+      const ESP32_PersistRecord_t *candidate =
+          (const ESP32_PersistRecord_t *)candidateAddress;
+      if (ESP32_Persist_RecordValid(candidate) &&
+          ((latest == NULL) || ((int32_t)(candidate->sequence - latest->sequence) > 0)))
+      {
+        latest = candidate;
+        latestAddress = candidateAddress;
+      }
+    }
+  }
+  if (address != NULL)
+  {
+    *address = latestAddress;
+  }
+  return latest;
+}
+
+static uint32_t ESP32_Persist_FindFreeSlot(uint32_t pageAddress)
+{
+  for (uint32_t slot = 0U; slot < ESP32_PERSIST_SLOTS_PER_PAGE; slot++)
+  {
+    const uint32_t address = pageAddress + (slot * ESP32_PERSIST_SLOT_SIZE);
+    const ESP32_PersistRecord_t *record = (const ESP32_PersistRecord_t *)address;
+    if (record->magic == 0xFFFFFFFFUL)
+    {
+      return address;
+    }
+  }
+  return 0U;
+}
+
+static HAL_StatusTypeDef ESP32_Persist_ErasePage(uint32_t pageAddress)
+{
+  FLASH_EraseInitTypeDef erase = {0};
+  uint32_t pageError = 0U;
+  erase.TypeErase = FLASH_TYPEERASE_PAGES;
+#if defined(FLASH_OPTR_DBANK)
+  erase.Banks = (pageAddress < (FLASH_BASE + FLASH_BANK_SIZE)) ? FLASH_BANK_1 : FLASH_BANK_2;
+  erase.Page = ((pageAddress - FLASH_BASE) % FLASH_BANK_SIZE) / FLASH_PAGE_SIZE;
+#else
+  erase.Banks = FLASH_BANK_1;
+  erase.Page = (pageAddress - FLASH_BASE) / FLASH_PAGE_SIZE;
+#endif
+  erase.NbPages = 1U;
+  return (HAL_FLASHEx_Erase(&erase, &pageError) == HAL_OK) ? HAL_OK : HAL_ERROR;
+}
+
+static HAL_StatusTypeDef ESP32_Persist_WriteRecord(uint32_t address,
+                                                   const ESP32_PersistRecord_t *record)
+{
+  uint64_t words[ESP32_PERSIST_SLOT_SIZE / sizeof(uint64_t)] = {0U};
+  (void)memcpy(words, record, sizeof(*record));
+  for (uint32_t index = 0U; index < (ESP32_PERSIST_SLOT_SIZE / sizeof(uint64_t)); index++)
+  {
+    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD,
+                          address + (index * sizeof(uint64_t)), words[index]) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+  }
+  return HAL_OK;
+}
+
+static HAL_StatusTypeDef ESP32_Persist_Append(const ESP32_PersistRecord_t *record)
+{
+  uint32_t latestAddress = 0U;
+  const ESP32_PersistRecord_t *latest = ESP32_Persist_FindLatest(&latestAddress);
+  uint32_t targetPage = ESP32_PERSIST_PAGE0;
+  uint32_t targetAddress;
+  if (latest != NULL)
+  {
+    targetPage = (latestAddress >= ESP32_PERSIST_PAGE1) ? ESP32_PERSIST_PAGE1 : ESP32_PERSIST_PAGE0;
+  }
+  targetAddress = ESP32_Persist_FindFreeSlot(targetPage);
+  if (targetAddress == 0U)
+  {
+    targetPage = (targetPage == ESP32_PERSIST_PAGE0) ? ESP32_PERSIST_PAGE1 : ESP32_PERSIST_PAGE0;
+    if (ESP32_Persist_ErasePage(targetPage) != HAL_OK)
+    {
+      return HAL_ERROR;
+    }
+    targetAddress = targetPage;
+  }
+  return ESP32_Persist_WriteRecord(targetAddress, record);
+}
+
+static HAL_StatusTypeDef ESP32_Persist_SaveRecord(ESP32_PersistRecord_t *record)
+{
+  const ESP32_PersistRecord_t *latest = ESP32_Persist_FindLatest(NULL);
+  record->sequence = (latest == NULL) ? 1U : (latest->sequence + 1U);
+  record->crc = ESP32_Persist_Crc(&record->magic, 10U);
+  if (HAL_FLASH_Unlock() != HAL_OK)
+  {
+    return HAL_ERROR;
+  }
+  HAL_StatusTypeDef status = ESP32_Persist_Append(record);
+  (void)HAL_FLASH_Lock();
+  return status;
+}
+
 HAL_StatusTypeDef ESP32_Persist_LoadPeriod(uint32_t defaultPeriodMs, uint32_t *periodMs)
 {
-  const ESP32_PersistRecord_t *record = (const ESP32_PersistRecord_t *)ESP32_PERSIST_FLASH_ADDRESS;
+  const ESP32_PersistRecord_t *record = ESP32_Persist_FindLatest(NULL);
   if (periodMs == NULL)
   {
     return HAL_ERROR;
   }
-  *periodMs = defaultPeriodMs;
-  if ((record->magic != ESP32_PERSIST_MAGIC) ||
-      (record->version != ESP32_PERSIST_VERSION) ||
-      (record->crc != ESP32_Persist_Crc(&record->magic, 8U)))
-  {
-    return HAL_ERROR;
-  }
-  *periodMs = record->periodMs;
-  return HAL_OK;
+  *periodMs = (record == NULL) ? defaultPeriodMs : record->periodMs;
+  return (record == NULL) ? HAL_ERROR : HAL_OK;
 }
 
 HAL_StatusTypeDef ESP32_Persist_SavePeriod(uint32_t periodMs)
 {
   ESP32_PersistRecord_t record = {0};
-  FLASH_EraseInitTypeDef erase = {0};
-  uint32_t pageError = 0U;
-  uint32_t index = 0U;
-  uint64_t flashWords[5] = {0U, 0U, 0U, 0U, 0U};
-  uint32_t address = 0U;
-  uint64_t value = 0U;
-  const ESP32_PersistRecord_t *oldRecord = (const ESP32_PersistRecord_t *)ESP32_PERSIST_FLASH_ADDRESS;
+  const ESP32_PersistRecord_t *oldRecord = ESP32_Persist_FindLatest(NULL);
   record.magic = ESP32_PERSIST_MAGIC;
   record.version = ESP32_PERSIST_VERSION;
   record.periodMs = periodMs;
-  if ((oldRecord->magic == ESP32_PERSIST_MAGIC) &&
-      (oldRecord->version == ESP32_PERSIST_VERSION) &&
-      (oldRecord->crc == ESP32_Persist_Crc(&oldRecord->magic, 8U)))
+  if (oldRecord != NULL)
   {
     record.lastEventId = oldRecord->lastEventId;
     record.pendingEventId = oldRecord->pendingEventId;
@@ -76,53 +183,18 @@ HAL_StatusTypeDef ESP32_Persist_SavePeriod(uint32_t periodMs)
     record.pendingPeakGyroDps = oldRecord->pendingPeakGyroDps;
     record.pendingMeta = oldRecord->pendingMeta;
   }
-  record.crc = ESP32_Persist_Crc(&record.magic, 8U);
-  (void)memcpy(flashWords, &record, sizeof(record));
-  if (HAL_FLASH_Unlock() != HAL_OK)
-  {
-    return HAL_ERROR;
-  }
-  erase.TypeErase = FLASH_TYPEERASE_PAGES;
-#if defined(FLASH_OPTR_DBANK)
-  erase.Banks = (ESP32_PERSIST_FLASH_ADDRESS < (FLASH_BASE + FLASH_BANK_SIZE)) ?
-                FLASH_BANK_1 : FLASH_BANK_2;
-  erase.Page = ((ESP32_PERSIST_FLASH_ADDRESS - FLASH_BASE) % FLASH_BANK_SIZE) /
-               FLASH_PAGE_SIZE;
-#else
-  erase.Banks = FLASH_BANK_1;
-  erase.Page = (ESP32_PERSIST_FLASH_ADDRESS - FLASH_BASE) / FLASH_PAGE_SIZE;
-#endif
-  erase.NbPages = 1U;
-  if (HAL_FLASHEx_Erase(&erase, &pageError) != HAL_OK)
-  {
-    (void)HAL_FLASH_Lock();
-    return HAL_ERROR;
-  }
-  for (index = 0U; index < ((sizeof(record) + sizeof(uint64_t) - 1U) / sizeof(uint64_t)); index++)
-  {
-    address = ESP32_PERSIST_FLASH_ADDRESS + (index * sizeof(uint64_t));
-    value = flashWords[index];
-    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, address, value) != HAL_OK)
-    {
-      (void)HAL_FLASH_Lock();
-      return HAL_ERROR;
-    }
-  }
-  (void)HAL_FLASH_Lock();
-  return HAL_OK;
+  return ESP32_Persist_SaveRecord(&record);
 }
 
 HAL_StatusTypeDef ESP32_Persist_LoadAccident(ESP32_AccidentPersist_t *snapshot)
 {
-  const ESP32_PersistRecord_t *record = (const ESP32_PersistRecord_t *)ESP32_PERSIST_FLASH_ADDRESS;
+  const ESP32_PersistRecord_t *record = ESP32_Persist_FindLatest(NULL);
   if (snapshot == NULL)
   {
     return HAL_ERROR;
   }
   (void)memset(snapshot, 0, sizeof(*snapshot));
-  if ((record->magic != ESP32_PERSIST_MAGIC) ||
-      (record->version != ESP32_PERSIST_VERSION) ||
-      (record->crc != ESP32_Persist_Crc(&record->magic, 8U)))
+  if (record == NULL)
   {
     return HAL_ERROR;
   }
@@ -139,26 +211,14 @@ HAL_StatusTypeDef ESP32_Persist_LoadAccident(ESP32_AccidentPersist_t *snapshot)
 HAL_StatusTypeDef ESP32_Persist_SaveAccident(const ESP32_AccidentPersist_t *snapshot)
 {
   ESP32_PersistRecord_t record = {0};
-  FLASH_EraseInitTypeDef erase = {0};
-  uint32_t pageError = 0U;
-  uint32_t index = 0U;
-  uint64_t flashWords[5] = {0U, 0U, 0U, 0U, 0U};
-  uint32_t address = 0U;
-  uint64_t value = 0U;
-  const ESP32_PersistRecord_t *oldRecord = (const ESP32_PersistRecord_t *)ESP32_PERSIST_FLASH_ADDRESS;
+  const ESP32_PersistRecord_t *oldRecord = ESP32_Persist_FindLatest(NULL);
   if (snapshot == NULL)
   {
     return HAL_ERROR;
   }
   record.magic = ESP32_PERSIST_MAGIC;
   record.version = ESP32_PERSIST_VERSION;
-  record.periodMs = ESP32_MQTT_PUBLISH_PERIOD_MS;
-  if ((oldRecord->magic == ESP32_PERSIST_MAGIC) &&
-      (oldRecord->version == ESP32_PERSIST_VERSION) &&
-      (oldRecord->crc == ESP32_Persist_Crc(&oldRecord->magic, 8U)))
-  {
-    record.periodMs = oldRecord->periodMs;
-  }
+  record.periodMs = (oldRecord != NULL) ? oldRecord->periodMs : ESP32_MQTT_PUBLISH_PERIOD_MS;
   record.lastEventId = snapshot->lastEventId;
   record.pendingEventId = snapshot->pendingEventId;
   record.pendingPeakAccelMg = snapshot->pendingPeakAccelMg;
@@ -166,36 +226,5 @@ HAL_StatusTypeDef ESP32_Persist_SaveAccident(const ESP32_AccidentPersist_t *snap
   record.pendingMeta = (uint32_t)snapshot->pendingEventType |
                        ((uint32_t)(snapshot->pendingValid & 0x01U) << 8U) |
                        ((uint32_t)snapshot->pendingRetryCount << 16U);
-  record.crc = ESP32_Persist_Crc(&record.magic, 8U);
-  (void)memcpy(flashWords, &record, sizeof(record));
-  if (HAL_FLASH_Unlock() != HAL_OK)
-  {
-    return HAL_ERROR;
-  }
-  erase.TypeErase = FLASH_TYPEERASE_PAGES;
-#if defined(FLASH_OPTR_DBANK)
-  erase.Banks = (ESP32_PERSIST_FLASH_ADDRESS < (FLASH_BASE + FLASH_BANK_SIZE)) ? FLASH_BANK_1 : FLASH_BANK_2;
-  erase.Page = ((ESP32_PERSIST_FLASH_ADDRESS - FLASH_BASE) % FLASH_BANK_SIZE) / FLASH_PAGE_SIZE;
-#else
-  erase.Banks = FLASH_BANK_1;
-  erase.Page = (ESP32_PERSIST_FLASH_ADDRESS - FLASH_BASE) / FLASH_PAGE_SIZE;
-#endif
-  erase.NbPages = 1U;
-  if (HAL_FLASHEx_Erase(&erase, &pageError) != HAL_OK)
-  {
-    (void)HAL_FLASH_Lock();
-    return HAL_ERROR;
-  }
-  for (index = 0U; index < ((sizeof(record) + sizeof(uint64_t) - 1U) / sizeof(uint64_t)); index++)
-  {
-    address = ESP32_PERSIST_FLASH_ADDRESS + (index * sizeof(uint64_t));
-    value = flashWords[index];
-    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, address, value) != HAL_OK)
-    {
-      (void)HAL_FLASH_Lock();
-      return HAL_ERROR;
-    }
-  }
-  (void)HAL_FLASH_Lock();
-  return HAL_OK;
+  return ESP32_Persist_SaveRecord(&record);
 }

@@ -84,6 +84,8 @@ typedef struct {
     volatile bool_t firstCANtxMessage;
     volatile uint16_t CANtxCount;
     uint32_t errOld;
+    CO_CANrxMsg_t rxMessage;
+    volatile bool_t rxMessagePending;
 } CO_CANmodule_t;
 
 typedef struct {
@@ -115,6 +117,9 @@ typedef struct {
         CO_MemoryBarrier();                                                                                            \
         rxNew = NULL;                                                                                                  \
     }
+
+void CO_CANinterrupt(CO_CANmodule_t* CANmodule);
+void CO_CANinterruptMessage(CO_CANmodule_t* CANmodule, uint16_t ident, uint8_t DLC, const uint8_t* data);
 
 #ifdef __cplusplus
 }

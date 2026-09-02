@@ -37,7 +37,7 @@
 typedef struct
 {
   FDCAN_RxHeaderTypeDef header;
-  uint8_t data[8];
+  uint8_t data[64];
 } CanRxMessage_t;
 
 typedef struct
@@ -56,6 +56,30 @@ typedef struct
 } CanNodeStats_t; /* 瀹氫箟鑺傜偣缁熻缁撴瀯浣撶被鍨嬪悕绉般€?*/
 
 /* USER CODE END PTD */
+
+static uint8_t FdcanDataLengthBytes(uint32_t dataLengthCode)
+{
+  switch (dataLengthCode)
+  {
+    case FDCAN_DLC_BYTES_0: return 0U;
+    case FDCAN_DLC_BYTES_1: return 1U;
+    case FDCAN_DLC_BYTES_2: return 2U;
+    case FDCAN_DLC_BYTES_3: return 3U;
+    case FDCAN_DLC_BYTES_4: return 4U;
+    case FDCAN_DLC_BYTES_5: return 5U;
+    case FDCAN_DLC_BYTES_6: return 6U;
+    case FDCAN_DLC_BYTES_7: return 7U;
+    case FDCAN_DLC_BYTES_8: return 8U;
+    case FDCAN_DLC_BYTES_12: return 12U;
+    case FDCAN_DLC_BYTES_16: return 16U;
+    case FDCAN_DLC_BYTES_20: return 20U;
+    case FDCAN_DLC_BYTES_24: return 24U;
+    case FDCAN_DLC_BYTES_32: return 32U;
+    case FDCAN_DLC_BYTES_48: return 48U;
+    case FDCAN_DLC_BYTES_64: return 64U;
+    default: return 0U;
+  }
+}
 
 /* USER CODE BEGIN PD */
 
@@ -729,7 +753,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t rxFifo0Inte
                                message.data) == HAL_OK) /* 灏嗘帴鏀舵暟鎹繚瀛樺埌鏈湴鎶ユ枃瀵硅薄銆?*/
     {
       CanOpenPort_RxInterrupt(message.header.Identifier,
-                              (uint8_t)(message.header.DataLength >> 16U),
+                              FdcanDataLengthBytes(message.header.DataLength),
                               message.data);
       syncReceiveTick = HAL_GetTick();
 #if (CAN_LEGACY_TIME_SYNC_ENABLE == 1U)

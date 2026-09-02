@@ -82,6 +82,10 @@ static void Accident_Raise(uint8_t eventType, uint32_t accelMg, uint32_t gyroDps
   accidentStatus.eventType = eventType;
   accidentStatus.lastEventTick = nowTick;
   nextEventId++;
+  if (nextEventId == 0U)
+  {
+    nextEventId = 1U;
+  }
   accidentStatus.lastEventId = nextEventId;
   accidentStatus.eventHoldUntilTick = nowTick + ACCIDENT_EVENT_HOLD_MS;
   accidentStatus.peakAccelMg = accelMg;

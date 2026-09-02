@@ -24,6 +24,9 @@
 
 void
 CO_CANsetConfigurationMode(void* CANptr) {
+    if (CANptr != NULL) {
+        (void)HAL_FDCAN_Stop((FDCAN_HandleTypeDef*)CANptr);
+    }
 }
 
 void
@@ -48,11 +51,13 @@ CO_CANmodule_init(CO_CANmodule_t* CANmodule, void* CANptr, CO_CANrx_t rxArray[],
     CANmodule->txSize = txSize;
     CANmodule->CANerrorStatus = 0;
     CANmodule->CANnormal = false;
-    CANmodule->useCANrxFilters = (rxSize <= 32U) ? true : false; /* microcontroller dependent */
+    CANmodule->useCANrxFilters = false;
     CANmodule->bufferInhibitFlag = false;
     CANmodule->firstCANtxMessage = true;
     CANmodule->CANtxCount = 0U;
     CANmodule->errOld = 0U;
+    (void)memset(&CANmodule->rxMessage, 0, sizeof(CANmodule->rxMessage));
+    CANmodule->rxMessagePending = false;
 
     for (i = 0U; i < rxSize; i++) {
         rxArray[i].ident = 0U;
@@ -63,20 +68,16 @@ CO_CANmodule_init(CO_CANmodule_t* CANmodule, void* CANptr, CO_CANrx_t rxArray[],
     for (i = 0U; i < txSize; i++) {
         txArray[i].bufferFull = false;
     }
-
-
-
-    if (CANmodule->useCANrxFilters) {
-    } else {
-    }
-
-
     return CO_ERROR_NO;
 }
 
 void
 CO_CANmodule_disable(CO_CANmodule_t* CANmodule) {
     if (CANmodule != NULL) {
+        if (CANmodule->CANptr != NULL) {
+            (void)HAL_FDCAN_Stop((FDCAN_HandleTypeDef*)CANmodule->CANptr);
+        }
+        CANmodule->CANnormal = false;
     }
 }
 
@@ -110,11 +111,12 @@ CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bo
                    bool_t syncFlag) {
     CO_CANtx_t* buffer = NULL;
 
-    if ((CANmodule != NULL) && (index < CANmodule->txSize)) {
+    if ((CANmodule != NULL) && (index < CANmodule->txSize) && (noOfBytes <= 8U)) {
         buffer = &CANmodule->txArray[index];
 
         buffer->ident = ((uint32_t)ident & 0x07FFU) | ((uint32_t)(((uint32_t)noOfBytes & 0xFU) << 11U))
                         | ((uint32_t)(rtr ? 0x8000U : 0U));
+        buffer->DLC = noOfBytes;
 
         buffer->bufferFull = false;
         buffer->syncFlag = syncFlag;
@@ -125,12 +127,15 @@ CO_CANtxBufferInit(CO_CANmodule_t* CANmodule, uint16_t index, uint16_t ident, bo
 
 CO_ReturnError_t
 CO_CANsend(CO_CANmodule_t* CANmodule, CO_CANtx_t* buffer) {
+    if ((CANmodule == NULL) || (buffer == NULL) || (CANmodule->CANptr == NULL) || (buffer->DLC > 8U)) {
+        return CO_ERROR_ILLEGAL_ARGUMENT;
+    }
     FDCAN_HandleTypeDef* hfdcan = (FDCAN_HandleTypeDef*)CANmodule->CANptr;
     FDCAN_TxHeaderTypeDef txHeader = {0};
     txHeader.Identifier = buffer->ident & 0x07FFU;
     txHeader.IdType = FDCAN_STANDARD_ID;
     txHeader.TxFrameType = FDCAN_DATA_FRAME;
-    uint8_t dataLength = (uint8_t)((buffer->ident >> 11U) & 0x0FU);
+    uint8_t dataLength = buffer->DLC;
     txHeader.DataLength = (dataLength == 0U) ? FDCAN_DLC_BYTES_0 : ((dataLength == 1U) ? FDCAN_DLC_BYTES_1 :
                           ((dataLength == 2U) ? FDCAN_DLC_BYTES_2 : ((dataLength == 3U) ? FDCAN_DLC_BYTES_3 :
                           ((dataLength == 4U) ? FDCAN_DLC_BYTES_4 : ((dataLength == 5U) ? FDCAN_DLC_BYTES_5 :
@@ -187,15 +192,35 @@ static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
 void
 CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
     uint32_t err;
+    FDCAN_ErrorCountersTypeDef counters = {0};
+    FDCAN_ProtocolStatusTypeDef protocol = {0};
+    bool_t busOff = false;
+    bool_t statusValid = false;
 
-    err = ((uint32_t)txErrors << 16) | ((uint32_t)rxErrors << 8) | overflow;
+    if ((CANmodule != NULL) && (CANmodule->CANptr != NULL) &&
+        (HAL_FDCAN_GetErrorCounters((FDCAN_HandleTypeDef*)CANmodule->CANptr, &counters) == HAL_OK)) {
+        rxErrors = (uint16_t)counters.RxErrorCnt;
+        txErrors = (uint16_t)counters.TxErrorCnt;
+        overflow = (uint16_t)counters.ErrorLogging;
+        statusValid = true;
+        if (HAL_FDCAN_GetProtocolStatus((FDCAN_HandleTypeDef*)CANmodule->CANptr, &protocol) == HAL_OK) {
+            busOff = (protocol.BusOff != 0U);
+        }
+    }
+
+    if ((CANmodule == NULL) || (statusValid == false)) {
+        return;
+    }
+
+    err = ((uint32_t)txErrors << 16) | ((uint32_t)rxErrors << 8) | overflow |
+          (busOff ? 0x80000000UL : 0U);
 
     if (CANmodule->errOld != err) {
         uint16_t status = CANmodule->CANerrorStatus;
 
         CANmodule->errOld = err;
 
-        if (txErrors >= 256U) {
+        if (busOff || (txErrors >= 256U)) {
             status |= CO_CAN_ERRTX_BUS_OFF;
         } else {
             status &= 0xFFFF
@@ -229,64 +254,32 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
 
 void
 CO_CANinterrupt(CO_CANmodule_t* CANmodule) {
+    uint16_t index;
 
-    if (1) {
-        CO_CANrxMsg_t* rcvMsg;     /* pointer to received CAN frame in CAN module */
-        uint16_t index;            /* index of received CAN frame */
-        uint32_t rcvMsgIdent;      /* identifier of the received CAN frame */
-        CO_CANrx_t* buffer = NULL; /* receive CAN frame buffer from CO_CANmodule_t object. */
-        bool_t msgMatched = false;
-
-        rcvMsg = 0; /* get CAN frame from module here */
-        rcvMsgIdent = rcvMsg->ident;
-        if (CANmodule->useCANrxFilters) {
-            index = 0; /* get index of the received CAN frame here. Or something similar */
-            if (index < CANmodule->rxSize) {
-                buffer = &CANmodule->rxArray[index];
-                if (((rcvMsgIdent ^ buffer->ident) & buffer->mask) == 0U) {
-                    msgMatched = true;
-                }
-            }
-        } else {
-            buffer = &CANmodule->rxArray[0];
-            for (index = CANmodule->rxSize; index > 0U; index--) {
-                if (((rcvMsgIdent ^ buffer->ident) & buffer->mask) == 0U) {
-                    msgMatched = true;
-                    break;
-                }
-                buffer++;
-            }
-        }
-
-        if (msgMatched && (buffer != NULL) && (buffer->CANrx_callback != NULL)) {
-            buffer->CANrx_callback(buffer->object, (void*)rcvMsg);
-        }
-
+    if ((CANmodule == NULL) || (CANmodule->rxMessagePending == false) ||
+        (CANmodule->rxArray == NULL)) {
+        return;
     }
 
-    else if (0) {
-
-        CANmodule->firstCANtxMessage = false;
-        CANmodule->bufferInhibitFlag = false;
-        if (CANmodule->CANtxCount > 0U) {
-            uint16_t i; /* index of transmitting CAN frame */
-
-            CO_CANtx_t* buffer = &CANmodule->txArray[0];
-            for (i = CANmodule->txSize; i > 0U; i--) {
-                if (buffer->bufferFull) {
-                    buffer->bufferFull = false;
-                    CANmodule->CANtxCount--;
-
-                    CANmodule->bufferInhibitFlag = buffer->syncFlag;
-                    break; /* exit for loop */
-                }
-                buffer++;
-            } /* end of for loop */
-
-            if (i == 0U) {
-                CANmodule->CANtxCount = 0U;
-            }
+    for (index = 0U; index < CANmodule->rxSize; index++) {
+        CO_CANrx_t* buffer = &CANmodule->rxArray[index];
+        if ((buffer->CANrx_callback != NULL) &&
+            (((CANmodule->rxMessage.ident ^ buffer->ident) & buffer->mask) == 0U)) {
+            buffer->CANrx_callback(buffer->object, &CANmodule->rxMessage);
+            break;
         }
-    } else {
     }
+    CANmodule->rxMessagePending = false;
+}
+
+void
+CO_CANinterruptMessage(CO_CANmodule_t* CANmodule, uint16_t ident, uint8_t DLC, const uint8_t* data) {
+    if ((CANmodule == NULL) || (data == NULL) || (DLC > 8U)) {
+        return;
+    }
+    CANmodule->rxMessage.ident = ident & 0x07FFU;
+    CANmodule->rxMessage.DLC = DLC;
+    (void)memcpy(CANmodule->rxMessage.data, data, DLC);
+    CANmodule->rxMessagePending = true;
+    CO_CANinterrupt(CANmodule);
 }

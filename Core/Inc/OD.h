@@ -261,9 +261,9 @@ typedef struct {
     uint16_t x2118_tpdo2Sequence;
     uint8_t x2120_accidentType;
     uint8_t x2121_accidentFlags;
-    uint16_t x2122_accidentEventId;
-    uint16_t x2123_peakAccelMg;
-    uint16_t x2124_peakGyroDps;
+    uint32_t x2122_accidentEventId;
+    uint8_t x2123_peakAccelMg;
+    uint8_t x2124_peakGyroDps;
 } OD_RAM_t;
 
 #ifndef OD_ATTR_PERSIST_COMM

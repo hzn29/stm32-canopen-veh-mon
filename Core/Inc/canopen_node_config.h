@@ -17,11 +17,19 @@
 #define CANOPEN_ACCIDENT_ACK_TIMEOUT_MS 500U
 #define CANOPEN_ACCIDENT_ACK_RETRY_WARNING_LIMIT 10U
 #define CANOPEN_ACCIDENT_ACK_DEGRADED_RETRY_MS 5000U
+#define CANOPEN_ACCIDENT_ACCEL_UNIT_MG 100U
+#define CANOPEN_ACCIDENT_GYRO_UNIT_DPS 10U
 #define CANOPEN_HEARTBEAT_CONSUMER_ENTRY(node_id, timeout_ms) \
     ((((uint32_t)(node_id)) << 16U) | ((uint32_t)(timeout_ms) & 0xFFFFU)) /* 缁勫悎 Node-ID 鍜岃秴鏃舵椂闂淬€?*/
 
-#ifndef CAN_NODE_ROLE
+#if defined(CAN_NODE_BUILD_A)
 #define CAN_NODE_ROLE CAN_NODE_ROLE_A
+#elif defined(CAN_NODE_BUILD_B)
+#define CAN_NODE_ROLE CAN_NODE_ROLE_B
+#elif defined(CAN_NODE_BUILD_C)
+#define CAN_NODE_ROLE CAN_NODE_ROLE_C
+#elif !defined(CAN_NODE_ROLE)
+#error "Define CAN_NODE_BUILD_A, CAN_NODE_BUILD_B, or CAN_NODE_BUILD_C"
 #endif
 
 #if (CAN_NODE_ROLE == CAN_NODE_ROLE_A)

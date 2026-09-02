@@ -1,23 +1,30 @@
-﻿# 浜嬫晠浜嬩欢 ACK銆佽秴鏃堕噸鍙戜笌鎺夌數淇濇姢
+# Accident ACK and persistence experiment
 
-## 鎶ユ枃绾﹀畾
+## Frame format
 
-- B 鑺傜偣浜嬫晠浜嬩欢 TPDO3锛氭爣鍑?CAN-ID `0x382`锛孋lassic CAN 8 瀛楄妭銆?- 瀛楄妭 0锛氫簨浠剁被鍨嬶紝`1` 涓虹鎾烇紝`2` 涓虹炕杞︺€?- 瀛楄妭 1锛氫簨浠舵爣蹇楋紝褰撳墠涓?`0`銆?- 瀛楄妭 2~3锛氫簨浠剁紪鍙?`event_id`锛屽皬绔?16 浣嶃€?- 瀛楄妭 4~5锛氬姞閫熷害宄板€硷紝鍗曚綅 mg銆?- 瀛楄妭 6~7锛氳閫熷害宄板€硷紝鍗曚綅 dps銆?- A 鑺傜偣 ACK锛氭爣鍑?CAN-ID `0x502`锛孋lassic CAN 2 瀛楄妭銆?- ACK 瀛楄妭 0~1锛氳纭鐨?`event_id`锛屽皬绔?16 浣嶃€?
-## B 鑺傜偣閲嶅彂绛栫暐
+B sends CANopen TPDO3 with COB-ID `0x382` and eight Classic CAN bytes:
 
-1. B 棣栨鍙戦€佷簨鏁?TPDO3 鍚庝繚瀛樺緟纭蹇収锛屽苟绛夊緟 `500 ms`銆?2. 鏈敹鍒扮浉鍚岀紪鍙?ACK 鏃堕噸鏂板彂閫佸悓涓€浜嬩欢缂栧彿锛岄噸璇曟鏁板姞涓€銆?3. 杩炵画閲嶈瘯杈惧埌 `10` 娆″悗锛岄噸鍙戦棿闅旈檷涓?`5 s`锛岄伩鍏嶆晠闅滅嚎璺暱鏈熷崰婊℃€荤嚎銆?4. ACK 缂栧彿鍖归厤鍚庢竻闄?pending 鏍囧織鍜岄噸璇曡鏁帮紝鍋滄璇ヤ簨浠堕噸鍙戙€?5. ACK 鎺ユ敹鍦?FDCAN 涓柇涓彧杩涘叆 FreeRTOS 闃熷垪锛孎lash 鎿﹀啓鍦?CAN 澶勭悊浠诲姟涓畬鎴愩€?
-## 鎺夌數淇濇姢鍐呭
+| Byte(s) | Field |
+| --- | --- |
+| 0 | Event type: `1` collision, `2` rollover |
+| 1 | Event flags |
+| 2..5 | Full 32-bit little-endian event ID |
+| 6 | Peak acceleration / 100 mg, saturated at 255 |
+| 7 | Peak angular rate / 10 dps, saturated at 255 |
 
-STM32G474RE 鏈€鍚庝竴涓?2 KB Flash 椤典繚瀛?40 瀛楄妭璁板綍锛?
-- MQTT 鍙戝竷鍛ㄦ湡锛?- 宸插垎閰嶇殑鏈€澶т簨浠剁紪鍙凤紱
-- 寰呯‘璁や簨浠剁紪鍙枫€佷簨浠剁被鍨嬶紱
-- 鍔犻€熷害鍜岃閫熷害宄板€硷紱
-- pending 鏍囧織鍜岄噸璇曟鏁帮紱
-- CRC32 鏍￠獙鍊笺€?
-B 鑺傜偣鍚姩鏃舵牎楠岃褰曞苟鎭㈠浜嬩欢缂栧彿銆傝嫢 pending 鏍囧織鏈夋晥锛孋ANopen 鏍堝惎鍔ㄥ悗绾?100 ms 閲嶆柊鍙戦€佷簨鏁呬簨浠讹紱鏀跺埌 A ACK 鍚庢竻闄?pending 骞跺啀娆′繚瀛樸€?
-## 瀹為獙姝ラ
+A returns COB-ID `0x502` with four little-endian bytes containing the same event ID.
 
-1. A銆丅 姝ｅ父杩炴帴锛岃Е鍙?B 鐨勭鎾炴垨缈昏溅浜嬩欢锛孭CAN-View 瑙傚療 `0x382` 鍚庣殑 `0x502` ACK銆?2. 涓存椂鏂紑 A 鎴栨嫈鎺?CANH/CANL锛屼娇 B 鍦?`500 ms` 鍚庡嚭鐜伴噸澶?`0x382`銆?3. 璁℃暟 `diagnostics.accidentRetryCount` 鍜?`diagnostics.accidentAckTimeoutCount`锛岀‘璁ら噸鍙戦棿闅旂敱 500 ms 閫愭鍙樹负 5 s銆?4. 鍦?B 鏄剧ず pending 鐘舵€佹椂澶嶄綅鎴栨柇鐢碉紝鍐嶆仮澶嶄緵鐢碉紱纭浜嬩欢缂栧彿涓嶅洖閫€涓斾粛鑳介噸鍙戙€?5. 鎭㈠鎬荤嚎鍚庣‘璁?A 鍥?ACK銆丅 鍋滄閲嶅彂锛宍diagnostics.accidentAckRxCount` 澧炲姞銆?6. A 渚у彲瑙傚療 `accidentAckTxCount` 涓?`accidentAckTxErrorCount`锛屽尯鍒?ACK 宸插叆纭欢闃熷垪鍜屽彂閫侀槦鍒楁孩鍑恒€?
-## 娉ㄦ剰浜嬮」
+## Retry behavior
 
-- 浜嬩欢缂栧彿鍦?CAN 鎶ユ枃涓紶杈撲綆 16 浣嶏紝鎺夌數璁板綍浠嶄繚瀛樺畬鏁?32 浣嶇紪鍙凤紱瀹為檯閮ㄧ讲搴旈伩鍏嶄綆 16 浣嶅湪鏈‘璁ゆ湡闂村洖缁曘€?- Flash 姣忔鐘舵€佸彉鍖栭兘浼氭摝闄や竴涓〉锛屽疄楠岄樁娈靛彲鎺ュ彈锛涢噺浜х増鏈簲鏀逛负纾ㄦ崯鍧囪　鏃ュ織鎴栧閮?EEPROM/FRAM銆?
+B stores the event before transmission. It retries after 500 ms until an ACK is received. After ten unsuccessful retries the interval changes to 5 s. A duplicate event is acknowledged but only processed once.
+
+## Power-loss behavior
+
+The pending event, full event ID, peak values, event type, and retry count are stored in a two-page append journal. Each record contains a sequence number and CRC32. On boot the newest valid record is restored; a Flash page is erased only when the active page is full.
+
+## Test procedure
+
+1. Trigger an event on B and verify `0x382` and `0x502` in PCAN-View.
+2. Disconnect A, verify B retries and enters the 5 s degraded interval after ten retries.
+3. Reset B while the event is pending and verify that it resumes transmission with the same 32-bit event ID.
+4. Reconnect A and verify one ACK clears the pending record.
