@@ -12,6 +12,7 @@ This repository is a laboratory prototype. It is not automotive safety-certified
 - CANopen driver: STM32 FDCAN RX messages are copied into a driver-owned context and dispatched by `CO_CANinterrupt()`; no template receive path is used.
 - Persistence: two-page append journal with sequence number and CRC32. A page is erased only when the active page is full.
 - TLS: server certificate verification is enabled by default. A CA certificate must be provisioned in the ESP-AT module before enabling MQTT credentials.
+- Bus-Off recovery: the first three consecutive events use a 100 ms automatic restart, events 4-10 use exponential backoff (200 ms to 12.8 s), and a persistent failure after the tenth retry locks recovery and keeps the CAN fault alarm active until reset.
 
 ## Hardware
 

@@ -197,6 +197,10 @@ static volatile uint32_t canBusOffCount;
 static volatile uint8_t canBusOffActive;
 static volatile uint32_t canRecoveryCount;
 static volatile uint32_t canRecoveryFailCount;
+static volatile uint32_t canRecoveryConsecutiveBusOff;
+static volatile uint32_t canRecoveryLastBusOffTick;
+static volatile uint32_t canRecoveryNextAttemptTick;
+static volatile uint8_t canRecoveryLocked;
 
 /* USER CODE END PV */
 
@@ -216,6 +220,7 @@ void StartDefaultTask(void *argument);
 static void CanTxTask(void *argument);
 static void CanRxTask(void *argument);
 static void CanRecoveryTask(void *argument);
+static void CanRecovery_RecordFailure(void);
 static void IwdgMonitorTask(void *argument);
 static void OledDashboardTask(void *argument);
 static uint32_t CanDecodeSequence(const uint8_t *data);
@@ -820,10 +825,19 @@ void HAL_FDCAN_ErrorStatusCallback(FDCAN_HandleTypeDef *hfdcan, uint32_t ErrorSt
     {
       canBusOffCount++;
       canBusOffActive = 1U;
+      if (canRecoveryConsecutiveBusOff < 0xFFFFFFFFUL)
+      {
+        canRecoveryConsecutiveBusOff++;
+      }
+      canRecoveryLastBusOffTick = HAL_GetTick();
+      canRecoveryNextAttemptTick = canRecoveryLastBusOffTick + CAN_BUS_RECOVERY_BASE_DELAY_MS;
       if (canRecoveryTaskHandle != NULL)
       {
-        vTaskNotifyGiveFromISR(canRecoveryTaskHandle, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+        if (canRecoveryLocked == 0U)
+        {
+          vTaskNotifyGiveFromISR(canRecoveryTaskHandle, &xHigherPriorityTaskWoken);
+          portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+        }
       }
     }
   }
@@ -840,39 +854,109 @@ void HAL_FDCAN_ErrorCallback(FDCAN_HandleTypeDef *hfdcan)
 static void CanRecoveryTask(void *argument)
 {
   (void)argument;
+  uint32_t notification;
+  uint32_t nowTick;
+  uint32_t recoveryDelayMs;
   for (;;)
   {
-    (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    vTaskDelay(pdMS_TO_TICKS(100U));
+    notification = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000U));
+    nowTick = HAL_GetTick();
+    if ((notification == 0U) &&
+        (canRecoveryLocked == 0U) &&
+        (canRecoveryConsecutiveBusOff != 0U) &&
+        (canBusOffActive == 0U) &&
+        ((nowTick - canRecoveryLastBusOffTick) >= CAN_BUS_RECOVERY_STABLE_TIME_MS))
+    {
+      canRecoveryConsecutiveBusOff = 0U;
+      continue;
+    }
+    if (canRecoveryLocked != 0U)
+    {
+      canBusOffActive = 1U;
+      continue;
+    }
+    if (canRecoveryConsecutiveBusOff > CAN_BUS_RECOVERY_BACKOFF_LIMIT)
+    {
+      canRecoveryLocked = 1U;
+      canBusOffActive = 1U;
+      continue;
+    }
+    if (canRecoveryConsecutiveBusOff <= CAN_BUS_RECOVERY_FAST_ATTEMPT_LIMIT)
+    {
+      recoveryDelayMs = CAN_BUS_RECOVERY_BASE_DELAY_MS;
+    }
+    else
+    {
+      recoveryDelayMs = CAN_BUS_RECOVERY_BASE_DELAY_MS <<
+                        (canRecoveryConsecutiveBusOff -
+                         CAN_BUS_RECOVERY_FAST_ATTEMPT_LIMIT);
+    }
+    if (notification != 0U)
+    {
+      canRecoveryNextAttemptTick = nowTick + recoveryDelayMs;
+    }
+    if ((int32_t)(nowTick - canRecoveryNextAttemptTick) < 0)
+    {
+      continue;
+    }
     if (HAL_FDCAN_Stop(&hfdcan1) == HAL_OK)
     {
       vTaskDelay(pdMS_TO_TICKS(10U));
       if (HAL_FDCAN_Start(&hfdcan1) == HAL_OK)
       {
-        if (HAL_FDCAN_ActivateNotification(&hfdcan1,
-                                           FDCAN_IT_RX_FIFO0_NEW_MESSAGE |
-                                           FDCAN_IT_ERROR_WARNING |
-                                           FDCAN_IT_ERROR_PASSIVE |
-                                           FDCAN_IT_BUS_OFF,
-                                           0U) == HAL_OK)
+        FDCAN_ProtocolStatusTypeDef protocolStatus = {0};
+        if ((HAL_FDCAN_ActivateNotification(&hfdcan1,
+                                             FDCAN_IT_RX_FIFO0_NEW_MESSAGE |
+                                             FDCAN_IT_ERROR_WARNING |
+                                             FDCAN_IT_ERROR_PASSIVE |
+                                             FDCAN_IT_BUS_OFF,
+                                             0U) == HAL_OK) &&
+            (HAL_FDCAN_GetProtocolStatus(&hfdcan1, &protocolStatus) == HAL_OK) &&
+            (protocolStatus.BusOff == 0U))
         {
           canRecoveryCount++;
           canBusOffActive = 0U;
+          canRecoveryNextAttemptTick = 0U;
         }
         else
         {
-          canRecoveryFailCount++;
+          CanRecovery_RecordFailure();
         }
       }
       else
       {
-        canRecoveryFailCount++;
+        CanRecovery_RecordFailure();
       }
     }
     else
     {
-      canRecoveryFailCount++;
+      CanRecovery_RecordFailure();
     }
+  }
+}
+
+static void CanRecovery_RecordFailure(void)
+{
+  uint32_t retryDelayMs = CAN_BUS_RECOVERY_BASE_DELAY_MS;
+  canRecoveryFailCount++;
+  canBusOffActive = 1U;
+  if (canRecoveryConsecutiveBusOff < 0xFFFFFFFFUL)
+  {
+    canRecoveryConsecutiveBusOff++;
+  }
+  if (canRecoveryConsecutiveBusOff > CAN_BUS_RECOVERY_BACKOFF_LIMIT)
+  {
+    canRecoveryLocked = 1U;
+    canRecoveryNextAttemptTick = 0U;
+  }
+  else
+  {
+    if (canRecoveryConsecutiveBusOff > CAN_BUS_RECOVERY_FAST_ATTEMPT_LIMIT)
+    {
+      retryDelayMs <<= (canRecoveryConsecutiveBusOff -
+                        CAN_BUS_RECOVERY_FAST_ATTEMPT_LIMIT);
+    }
+    canRecoveryNextAttemptTick = HAL_GetTick() + retryDelayMs;
   }
 }
 

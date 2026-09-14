@@ -19,6 +19,10 @@
 #define CANOPEN_ACCIDENT_ACK_DEGRADED_RETRY_MS 5000U
 #define CANOPEN_ACCIDENT_ACCEL_UNIT_MG 100U
 #define CANOPEN_ACCIDENT_GYRO_UNIT_DPS 10U
+#define CAN_BUS_RECOVERY_FAST_ATTEMPT_LIMIT 3U /* 前三次 Bus-Off 使用快速恢复。 */
+#define CAN_BUS_RECOVERY_BACKOFF_LIMIT 10U /* 第十次以后进入恢复锁定。 */
+#define CAN_BUS_RECOVERY_BASE_DELAY_MS 100U /* 快速恢复和指数退避的基础延时。 */
+#define CAN_BUS_RECOVERY_STABLE_TIME_MS 10000U /* 持续稳定后清零连续故障计数。 */
 #define CANOPEN_HEARTBEAT_CONSUMER_ENTRY(node_id, timeout_ms) \
     ((((uint32_t)(node_id)) << 16U) | ((uint32_t)(timeout_ms) & 0xFFFFU)) /* 缁勫悎 Node-ID 鍜岃秴鏃舵椂闂淬€?*/
 
